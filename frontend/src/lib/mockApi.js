@@ -147,7 +147,7 @@ export const getTestimonialById = async (testimonialId) => {
 
 // ============ CAMPAIGNS ============
 
-export const createCampaign = async (campaignName, productDescription, questions) => {
+export const createCampaign = async (campaignName, productDescription, questions, options = {}) => {
   return new Promise((resolve) => {
     setTimeout(() => {
       const campaignId = generateId();
@@ -158,6 +158,11 @@ export const createCampaign = async (campaignName, productDescription, questions
         questions: questions || DUMMY_QUESTIONS,
         createdAt: new Date().toISOString(),
         testimonialCount: 0,
+        companyName: options.companyName || "",
+        productName: options.productName || campaignName,
+        companyLogo: options.companyLogo || null, // URL or base64
+        feedbackType: options.feedbackType || "General Feedback",
+        successMessage: options.successMessage || `Thanks for recording your feedback for ${campaignName}!`,
       };
 
       const existingCampaigns = JSON.parse(localStorage.getItem("campaigns") || "[]");
