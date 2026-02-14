@@ -1,32 +1,34 @@
-const OpenAI = require('openai');
+const Groq = require('groq-sdk');
 const fs = require('fs');
 const dotenv = require('dotenv');
 
 dotenv.config();
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY
 });
 
 const transcribeAudio = async (filePath) => {
     try {
-        const transcription = await openai.audio.transcriptions.create({
+        const transcription = await groq.audio.transcriptions.create({
             file: fs.createReadStream(filePath),
-            model: "whisper-1",
+            model: 'whisper-large-v3',
+            language: 'en'
         });
 
         return transcription.text;
     } catch (error) {
-        console.error('Whisper Transcription Error:', error);
+        console.error('Groq Whisper Transcription Error:', error);
         throw error;
     }
 };
 
 const transcribeAudioWithTimestamps = async (filePath) => {
     try {
-        const transcription = await openai.audio.transcriptions.create({
+        const transcription = await groq.audio.transcriptions.create({
             file: fs.createReadStream(filePath),
-            model: 'whisper-1',
+            model: 'whisper-large-v3',
+            language: 'en',
             response_format: 'verbose_json'
         });
 
@@ -41,7 +43,7 @@ const transcribeAudioWithTimestamps = async (filePath) => {
                 : []
         };
     } catch (error) {
-        console.error('Whisper Transcription Error:', error);
+        console.error('Groq Whisper Transcription Error:', error);
         throw error;
     }
 };
