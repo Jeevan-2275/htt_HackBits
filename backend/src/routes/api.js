@@ -10,6 +10,8 @@ const videoController = require('../controllers/videoController');
 router.post('/prompt', promptController.analyzeUserPrompt);
 router.post('/session/start', interviewController.startSession);
 router.post('/conversation/next', upload.single('audio'), interviewController.nextTurn);
+router.post('/video/upload', upload.single('video'), videoController.uploadRawVideo);
+router.post('/process/highlights', videoController.processHighlightsForSession);
 router.post('/process/reel', videoController.generateReelForSession);
 
 // Status Route
