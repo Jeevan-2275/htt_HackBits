@@ -6,6 +6,11 @@ const InterviewSessionSchema = new mongoose.Schema({
         ref: 'UserPrompt',
         required: false
     },
+    projectId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Project',
+        required: true
+    },
     status: {
         type: String,
         enum: ['active', 'completed', 'processing', 'failed'],
