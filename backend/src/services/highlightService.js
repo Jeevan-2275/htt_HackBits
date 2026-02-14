@@ -1,13 +1,13 @@
-const OpenAI = require('openai');
+const Groq = require('groq-sdk');
 const dotenv = require('dotenv');
 
 dotenv.config();
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY
 });
 
-const HIGHLIGHT_MODEL = process.env.OPENAI_HIGHLIGHT_MODEL || 'gpt-4o';
+const HIGHLIGHT_MODEL = process.env.GROQ_HIGHLIGHT_MODEL || 'llama-3.3-70b-versatile';
 
 const extractHighlights = async (transcriptText, segments) => {
     try {
@@ -20,19 +20,23 @@ const extractHighlights = async (transcriptText, segments) => {
             }))
         };
 
-        const completion = await openai.chat.completions.create({
+        const completion = await groq.chat.completions.create({
             model: HIGHLIGHT_MODEL,
             response_format: { type: 'json_object' },
             messages: [
                 {
                     role: 'system',
                     content: [
-                        'You extract 3 to 5 powerful testimonial highlights.',
+                        'You are a testimonial video editor AI.',
+                        'Extract the most powerful, emotionally compelling highlights from this testimonial.',
+                        'IMPORTANT: Select highlights so their TOTAL duration adds up to approximately 25-35 seconds (target: 30 seconds).',
+                        'Pick 2 to 4 highlights. Each highlight can be 6-15 seconds long.',
+                        'Prefer segments that: show genuine emotion, mention specific results/numbers, express strong recommendations, or describe transformation.',
                         'Return JSON with key "highlights":',
                         '[{ "quote": string, "start": number, "end": number }].',
                         'Use segment timestamps to set start and end in seconds.',
                         'Quotes must be verbatim from the transcript.',
-                        'Keep each quote concise (under 20 seconds of speech).'
+                        'Order highlights for best storytelling flow (context first, impact last).'
                     ].join(' ')
                 },
                 {

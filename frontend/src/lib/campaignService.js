@@ -49,17 +49,24 @@ class CampaignService {
   // Get campaign by ID (Public - no auth required, for recording page)
   async getPublicCampaignById(campaignId) {
     try {
-      const response = await fetch(`${API_URL}/projects/public/${campaignId}`, {
+      console.log('🔓 Fetching PUBLIC campaign:', campaignId);
+      console.log('📊 Using API_URL:', API_URL);
+      const url = `${API_URL}/projects/public/${campaignId}`;
+      console.log('🔗 Full URL:', url);
+      const response = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
 
       const data = await response.json();
+      console.log('📥 Response status:', response.status, 'Data:', data);
 
       if (!response.ok) {
+        console.error('❌ API Error:', data.error);
         throw new Error(data.error || 'Failed to fetch campaign');
       }
 
+      console.log('✅ Public campaign fetched:', data.data);
       return data.data;
     } catch (error) {
       console.error('Error fetching campaign:', error);
@@ -70,6 +77,8 @@ class CampaignService {
   // Create new campaign
   async createCampaign(campaignData) {
     try {
+      console.log('📊 API_URL:', API_URL);
+      console.log('📤 Campaign data being sent:', campaignData);
       const response = await fetch(`${API_URL}/projects`, {
         method: 'POST',
         headers: authService.getAuthHeaders(),
@@ -77,11 +86,14 @@ class CampaignService {
       });
 
       const data = await response.json();
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response data:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to create campaign');
       }
 
+      console.log('✅ Created campaign with ID:', data.data?._id);
       return data.data;
     } catch (error) {
       console.error('Error creating campaign:', error);

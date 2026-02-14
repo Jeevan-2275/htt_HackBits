@@ -37,10 +37,13 @@ export default function RecordPage() {
   useEffect(() => {
     const loadCampaign = async () => {
       try {
+        console.log('📥 Loading campaign with ID:', campaignId);
         // Use public method (no auth required)
         const data = await campaignService.getPublicCampaignById(campaignId);
+        console.log('✅ Campaign loaded:', data);
         if (!data) {
           setError('Campaign not found');
+          console.error('❌ Campaign not found for ID:', campaignId);
         } else {
           setCampaign(data);
         }

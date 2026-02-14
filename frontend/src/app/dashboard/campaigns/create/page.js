@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import campaignService from '@/lib/campaignService';
+import { generateAIQuestions } from '@/lib/mockApi';
 
 export default function CreateCampaignPage() {
   const router = useRouter();
@@ -62,15 +63,15 @@ export default function CreateCampaignPage() {
     setError('');
     
     try {
-      // For now, use default questions. In the future, integrate with AI API
-      const defaultQuestions = [
-        "What problem were you facing before using this product?",
-        "How did this product improve your workflow?",
-        "What measurable results did you achieve?",
-        "How easy was it to integrate this product into your business?",
-        "Would you recommend this product to others? Why?"
-      ];
-      setGeneratedQuestions(defaultQuestions);
+      const questions = await generateAIQuestions({
+        companyName: formData.companyName,
+        productName: formData.productName || formData.campaignName,
+        feedbackType: formData.feedbackType,
+        campaignName: formData.campaignName,
+        productDescription: formData.productDescription,
+        questionCount: 10,
+      });
+      setGeneratedQuestions(questions);
     } catch (err) {
       setError('Failed to generate questions. Please try again.');
     } finally {
@@ -103,7 +104,10 @@ export default function CreateCampaignPage() {
         companyLogo: formData.companyLogo,
       };
 
+      console.log('📤 Creating campaign with payload:', campaignPayload);
       const campaign = await campaignService.createCampaign(campaignPayload);
+      console.log('✅ Campaign created:', campaign);
+      console.log('📌 Campaign ID:', campaign._id);
       setCreatedCampaign(campaign);
     } catch (err) {
       setError(err.message || 'Failed to create campaign. Please try again.');
@@ -114,7 +118,13 @@ export default function CreateCampaignPage() {
   };
 
   const handleCopyLink = () => {
+    if (!createdCampaign || !createdCampaign._id) {
+      console.error('❌ Missing campaign ID:', createdCampaign);
+      setError('Campaign data missing. Please try creating again.');
+      return;
+    }
     const publicLink = `${window.location.origin}/record/${createdCampaign._id}`;
+    console.log('🔗 Recording link:', publicLink);
     navigator.clipboard.writeText(publicLink);
     alert('Public link copied to clipboard!');
   };
