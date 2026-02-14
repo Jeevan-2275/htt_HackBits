@@ -28,14 +28,14 @@ const analyzePrompt = async (userPromptText) => {
                 { role: "system", content: "You are an expert interviewer. Analyze the user's request and outline an interview strategy. Return JSON with 'goal' (string) and 'intentMap' (array of 3-5 sub-topics/questions)." },
                 { role: "user", content: `User Prompt: ${userPromptText}` }
             ],
-            model: "gpt-4-1106-preview", // or gpt-3.5-turbo-1106
+            model: "gpt-4-turbo",
             response_format: { type: "json_object" }
         });
 
         return JSON.parse(completion.choices[0].message.content);
     } catch (error) {
         console.error('AI Analysis Error:', error.message);
-        if (error.code === 'invalid_api_key' || error.status === 401) {
+        if (error.code === 'invalid_api_key' || error.status === 401 || error.status === 404) {
             console.log('⚠️ Using Mock Data for Analyze Prompt');
             return {
                 goal: "Analyze the user's background and experience",
@@ -67,7 +67,7 @@ const generateNextQuestion = async (history, intentMap, currentGoal) => {
         return completion.choices[0].message.content;
     } catch (error) {
         console.error('AI Question Gen Error:', error.message);
-        if (error.code === 'invalid_api_key' || error.status === 401) {
+        if (error.code === 'invalid_api_key' || error.status === 401 || error.status === 404) {
             console.log('⚠️ Using Mock Data for Next Question');
             return "That's interesting! Can you tell me more about that?";
         }
@@ -109,7 +109,7 @@ const generateSpeech = async (text) => {
         return filePath;
     } catch (error) {
         console.error('TTS Error:', error.message);
-        if (error.code === 'invalid_api_key' || error.status === 401) {
+        if (error.code === 'invalid_api_key' || error.status === 401 || error.status === 404) {
             console.log('⚠️ Using Mock Data for TTS');
             // Create a dummy file
             const uploadDir = 'uploads/';
@@ -182,7 +182,7 @@ const generateCampaignQuestions = async ({
                     content: `Company: ${companyName}, Product: ${productName}, Feedback Type: ${feedbackType}, Campaign: ${campaignName}, Description: ${productDescription}. Generate exactly ${questionCount} questions for testimonial recording.`
                 }
             ],
-            model: "gpt-4-1106-preview",
+            model: "gpt-4-turbo",
             response_format: { type: 'json_object' }
         });
 
@@ -202,7 +202,7 @@ const generateCampaignQuestions = async ({
         throw new Error('Invalid response format from AI');
     } catch (error) {
         console.error('AI Campaign Questions Error:', error.message);
-        if (error.code === 'invalid_api_key' || error.status === 401) {
+        if (error.code === 'invalid_api_key' || error.status === 401 || error.status === 404) {
             console.log(`⚠️ Using Mock Data for Campaign Questions. Generating ${questionCount} questions.`);
             return {
                 questions: generateMockQuestions(questionCount)
