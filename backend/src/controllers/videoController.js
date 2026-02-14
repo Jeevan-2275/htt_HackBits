@@ -80,6 +80,15 @@ const findTimeRangeForQuote = (quote, segments) => {
     return { start: best.start, end: best.end };
 };
 
+const isTranscriptTooShort = (durationSeconds, transcription) => {
+    if (!durationSeconds || durationSeconds < 60) return false;
+    const textLength = transcription && transcription.text ? transcription.text.length : 0;
+    const segmentCount = transcription && Array.isArray(transcription.segments) ? transcription.segments.length : 0;
+    const minChars = Math.floor(durationSeconds * 4);
+    const minSegments = Math.max(6, Math.floor(durationSeconds / 15));
+    return textLength < minChars || segmentCount < minSegments;
+};
+
 // @desc    Upload Raw Video for Session
 // @route   POST /api/video/upload
 exports.uploadRawVideo = async (req, res) => {
@@ -154,10 +163,38 @@ exports.processHighlightsForSession = async (req, res) => {
                 const localVideoPath = path.join(tempDir, `${videoAsset._id}.mp4`);
                 await downloadFile(videoAsset.cloudinaryUrl, localVideoPath);
 
-                const audioPath = path.join(tempDir, `audio_${sessionId}.wav`);
+                let videoDuration = 0;
+                try {
+                    videoDuration = await ffmpegService.getMediaDuration(localVideoPath);
+                    console.log(`[SESSION ${sessionId}] Video duration: ${videoDuration.toFixed(1)}s`);
+                } catch (err) {
+                    console.log(`[SESSION ${sessionId}] Video duration unavailable`);
+                }
+
+                const audioPath = path.join(tempDir, `audio_${sessionId}.mp3`);
                 await ffmpegService.extractAudio(localVideoPath, audioPath);
 
-                const transcription = await transcriptionService.transcribeAudioWithTimestamps(audioPath);
+                try {
+                    const audioDuration = await ffmpegService.getMediaDuration(audioPath);
+                    console.log(`[SESSION ${sessionId}] Audio duration: ${audioDuration.toFixed(1)}s`);
+                } catch (err) {
+                    console.log(`[SESSION ${sessionId}] Audio duration unavailable`);
+                }
+
+                let transcription = await transcriptionService.transcribeAudioWithTimestamps(audioPath, {
+                    durationHint: videoDuration,
+                    forceChunking: videoDuration >= 60
+                });
+
+                if (isTranscriptTooShort(videoDuration, transcription)) {
+                    console.log(`[SESSION ${sessionId}] Transcript too short for video length, retrying with WAV...`);
+                    const wavPath = path.join(tempDir, `audio_${sessionId}.wav`);
+                    await ffmpegService.extractAudioWav(localVideoPath, wavPath);
+                    transcription = await transcriptionService.transcribeAudioWithTimestamps(wavPath, {
+                        durationHint: videoDuration,
+                        forceChunking: true
+                    });
+                }
                 session.transcript = transcription.text;
                 session.transcriptSegments = transcription.segments;
                 await session.save();
@@ -168,6 +205,7 @@ exports.processHighlightsForSession = async (req, res) => {
                 );
 
                 const createdClips = [];
+                const subtitledClipPaths = [];
                 for (let i = 0; i < highlights.length; i += 1) {
                     const highlight = highlights[i];
                     const range = (typeof highlight.start === 'number' && typeof highlight.end === 'number')
@@ -183,6 +221,7 @@ exports.processHighlightsForSession = async (req, res) => {
 
                     const subtitledPath = path.join(tempDir, `clip_${i + 1}_subtitled.mp4`);
                     await ffmpegService.burnSubtitles(clipPath, srtPath, subtitledPath);
+                    subtitledClipPaths.push(subtitledPath);
 
                     const uploadResult = await uploadToCloudinary(subtitledPath, 'htt_hackbits/clips');
 
@@ -197,7 +236,21 @@ exports.processHighlightsForSession = async (req, res) => {
                     createdClips.push(clip._id);
                 }
 
+                // Concatenate all clips into a single ~1 min highlight reel
+                const reelPath = path.join(tempDir, `reel_final.mp4`);
+                await ffmpegService.concatClips(subtitledClipPaths, reelPath);
+
+                const reelUpload = await uploadToCloudinary(reelPath, 'htt_hackbits/reels');
+
+                const reel = await ReelAsset.create({
+                    sessionId: session._id,
+                    cloudinaryUrl: reelUpload.secure_url,
+                    highlights: highlights.map(h => h.quote),
+                    duration: reelUpload.duration
+                });
+
                 session.clipAssetIds = createdClips;
+                session.reelAssetId = reel._id;
                 session.status = 'completed';
                 await session.save();
 
