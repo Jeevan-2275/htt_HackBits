@@ -13,14 +13,14 @@ export default function Footer() {
   }
 
   return (
-    <footer className="bg-slate-900 text-slate-400 border-t border-slate-800/50">
+    <footer className="bg-slate-900 text-slate-400 border-t border-white/10/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Footer Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
                 <span className="text-white font-bold text-lg">F</span>
               </div>
               <span className="font-bold text-lg text-slate-100">Feedspace</span>
@@ -108,7 +108,7 @@ export default function Footer() {
         </div>
 
         {/* Divider */}
-        <div className="border-t border-slate-800/50 pt-8">
+        <div className="border-t border-white/10/50 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             {/* Copyright */}
             <p className="text-sm text-slate-500">
