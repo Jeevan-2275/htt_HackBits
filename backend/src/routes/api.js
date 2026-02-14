@@ -4,12 +4,8 @@ const upload = require('../utils/fileUpload');
 const { protect } = require('../middleware/auth');
 const promptController = require('../controllers/promptController');
 const interviewController = require('../controllers/interviewController');
-<<<<<<< HEAD
-=======
-const jobController = require('../controllers/jobController');
-
->>>>>>> 19c6a13b6733212b1ab508c1d0a2f140551b4e76
 const videoController = require('../controllers/videoController');
+const jobController = require('../controllers/jobController');
 const authController = require('../controllers/authController');
 const projectController = require('../controllers/projectController');
 const testimonialController = require('../controllers/testimonialController');
