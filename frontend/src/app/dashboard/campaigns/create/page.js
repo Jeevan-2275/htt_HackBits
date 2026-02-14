@@ -1,0 +1,381 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createCampaign, generateAIQuestions } from '@/lib/mockApi';
+
+export default function CreateCampaignPage() {
+  const router = useRouter();
+  const [formData, setFormData] = useState({
+    campaignName: '',
+    productDescription: '',
+  });
+  const [generatedQuestions, setGeneratedQuestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [generatingQuestions, setGeneratingQuestions] = useState(false);
+  const [createdCampaign, setCreatedCampaign] = useState(null);
+  const [error, setError] = useState('');
+  const [emails, setEmails] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailSuccess, setEmailSuccess] = useState(false);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGenerateQuestions = async () => {
+    if (!formData.productDescription.trim()) {
+      setError('Please enter a product description first');
+      return;
+    }
+
+    setGeneratingQuestions(true);
+    setError('');
+    
+    try {
+      const questions = await generateAIQuestions(formData.productDescription);
+      setGeneratedQuestions(questions);
+    } catch (err) {
+      setError('Failed to generate questions. Please try again.');
+    } finally {
+      setGeneratingQuestions(false);
+    }
+  };
+
+  const handleCreateCampaign = async () => {
+    if (!formData.campaignName.trim()) {
+      setError('Please enter a campaign name');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const campaign = await createCampaign(
+        formData.campaignName,
+        formData.productDescription,
+        generatedQuestions.length > 0 ? generatedQuestions : undefined
+      );
+      setCreatedCampaign(campaign);
+    } catch (err) {
+      setError('Failed to create campaign. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopyLink = () => {
+    const publicLink = `${window.location.origin}/record/${createdCampaign.id}`;
+    navigator.clipboard.writeText(publicLink);
+    alert('Public link copied to clipboard!');
+  };
+
+  const handleSendEmails = async () => {
+    if (!emails.trim()) {
+      setError('Please enter at least one email address');
+      return;
+    }
+
+    setEmailLoading(true);
+    setError('');
+
+    try {
+      const emailList = emails
+        .split(/[,\n]+/)
+        .map(e => e.trim())
+        .filter(e => e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+
+      if (emailList.length === 0) {
+        setError('Please enter valid email addresses');
+        setEmailLoading(false);
+        return;
+      }
+
+      const publicLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/record/${createdCampaign.id}`;
+      
+      // Call the email API endpoint
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          emails: emailList,
+          campaignName: createdCampaign.name,
+          campaignLink: publicLink,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to send emails');
+      }
+
+      const data = await response.json();
+
+      setEmailSuccess(true);
+      setEmails('');
+      setTimeout(() => setEmailSuccess(false), 3000);
+    } catch (err) {
+      setError(err.message || 'Failed to send emails. Please try again.');
+      console.error('Email error:', err);
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  if (createdCampaign) {
+    return (
+      <div className="p-6 md:p-10">
+        {/* Header */}
+        <div className="mb-10">
+          <h1 className="text-4xl font-bold text-white mb-2">Campaign Created Successfully! 🎉</h1>
+          <p className="text-white/60">Your campaign is ready to collect testimonials</p>
+        </div>
+
+        {/* Success Card */}
+        <div className="max-w-4xl space-y-8">
+          {/* Campaign Active Alert */}
+          <div className="bg-emerald-500/15 border border-emerald-500/30 rounded-xl p-6">
+            <p className="text-emerald-400 font-semibold mb-2">✅ Campaign Active</p>
+            <p className="text-white/70 text-sm">Your campaign is now live and ready to collect testimonials.</p>
+          </div>
+
+          {/* Campaign Details */}
+          <div className="glass p-8 space-y-6">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
+              Campaign Details
+            </h2>
+
+            <div>
+              <p className="text-white/50 text-sm mb-2">Campaign Name</p>
+              <p className="text-white font-bold text-lg">{createdCampaign.name}</p>
+            </div>
+
+            <div>
+              <p className="text-white/50 text-sm mb-2">Campaign ID</p>
+              <p className="text-white/80 font-mono text-sm bg-white/5 px-4 py-2 rounded border border-white/10">{createdCampaign.id}</p>
+            </div>
+
+            <div>
+              <p className="text-white/50 text-sm mb-2">Public Recording Link</p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/record/${createdCampaign.id}`}
+                  className="flex-1 px-4 py-2 bg-white/5 text-white/80 rounded-lg text-sm border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <button
+                  onClick={handleCopyLink}
+                  className="px-6 py-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 text-white rounded-lg font-bold transition cursor-pointer hover:scale-105"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-white/50 text-sm mb-2">Generated Questions ({createdCampaign.questions.length})</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {createdCampaign.questions.map((q, idx) => (
+                  <p key={idx} className="text-white/70 text-sm flex items-start gap-3 p-2 bg-white/5 rounded border border-white/10">
+                    <span className="text-blue-400 font-bold flex-shrink-0">{idx + 1}.</span>
+                    <span>{q}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Email Distribution Section */}
+          <div className="glass p-8 space-y-6">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
+              📧 Distribute via Email
+            </h2>
+            <p className="text-white/60">Send the campaign link directly to participants via email</p>
+
+            {/* Email Success Alert */}
+            {emailSuccess && (
+              <div className="p-4 bg-emerald-500/15 border border-emerald-500/30 rounded-lg">
+                <p className="text-emerald-400 text-sm font-semibold">✅ Emails sent successfully!</p>
+              </div>
+            )}
+
+            {/* Email Input */}
+            <div>
+              <label className="block text-sm font-semibold text-white/80 mb-3">
+                Email Addresses (comma or line separated)
+              </label>
+              <textarea
+                value={emails}
+                onChange={(e) => setEmails(e.target.value)}
+                placeholder="john@example.com, sarah@example.com&#10;or paste multiple emails (one per line)"
+                rows="4"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition resize-none"
+              />
+            </div>
+
+            {/* Send Button */}
+            <button
+              onClick={handleSendEmails}
+              disabled={emailLoading || !emails.trim()}
+              className="w-full px-6 py-3 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition cursor-pointer hover:scale-105"
+            >
+              {emailLoading ? '📧 Sending Emails...' : '📧 Send Links via Email'}
+            </button>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Link href="/dashboard/campaigns" className="cursor-pointer">
+              <button className="w-full px-6 py-3 glass text-white rounded-lg font-bold transition cursor-pointer hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/10">
+                ← Back to Campaigns
+              </button>
+            </Link>
+            <button
+              onClick={() => window.open(`/record/${createdCampaign.id}`, '_blank')}
+              className="w-full px-6 py-3 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 text-white rounded-lg font-bold transition cursor-pointer hover:scale-105"
+            >
+              🎥 Test Recording Link
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 md:p-10">
+      {/* Header with Gradient Text */}
+      <div className="mb-12 flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent mb-2">Create Campaign</h1>
+          <p className="text-white/60">Set up a new testimonial collection campaign</p>
+        </div>
+        <Link href="/dashboard/campaigns" className="cursor-pointer">
+          <button className="px-6 py-3 glass text-white rounded-lg font-medium transition cursor-pointer hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/10">
+            ← Back
+          </button>
+        </Link>
+      </div>
+
+      {/* Create Form Card */}
+      <div className="max-w-2xl">
+        <div className="glass p-8 space-y-8">
+          {/* Campaign Info Section */}
+          <div>
+            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-3">
+              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
+              Campaign Information
+            </h2>
+            
+            {/* Campaign Name */}
+            <div className="mb-6">
+              <label htmlFor="campaignName" className="block text-sm font-semibold text-white/80 mb-3">
+                Campaign Name *
+              </label>
+              <input
+                id="campaignName"
+                name="campaignName"
+                type="text"
+                value={formData.campaignName}
+                onChange={handleInputChange}
+                placeholder="e.g., Product Launch Feedback"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+              />
+            </div>
+
+            {/* Product Description */}
+            <div>
+              <label htmlFor="productDescription" className="block text-sm font-semibold text-white/80 mb-3">
+                Product Description *
+              </label>
+              <textarea
+                id="productDescription"
+                name="productDescription"
+                value={formData.productDescription}
+                onChange={handleInputChange}
+                placeholder="Describe your product in detail so we can generate relevant questions..."
+                rows="5"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition resize-none"
+              ></textarea>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-gradient-to-r from-white/0 via-white/10 to-white/0"></div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="p-4 bg-red-500/15 border border-red-500/30 rounded-lg">
+              <p className="text-red-400 text-sm font-medium">⚠️ {error}</p>
+            </div>
+          )}
+
+          {/* Questions Section */}
+          <div>
+            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-3">
+              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
+              AI Questions
+            </h2>
+            
+            {/* Generate Questions Button */}
+            <button
+              onClick={handleGenerateQuestions}
+              disabled={generatingQuestions || !formData.productDescription.trim()}
+              className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:shadow-xl hover:shadow-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition cursor-pointer hover:scale-105"
+            >
+              {generatingQuestions ? (
+                <>
+                  <span className="animate-spin inline-block">⚡</span>
+                  {' '}Generating Questions...
+                </>
+              ) : (
+                <>
+                  <span>✨</span>
+                  {' '}Generate AI Questions
+                </>
+              )}
+            </button>
+
+            {/* Generated Questions Preview */}
+            {generatedQuestions.length > 0 && (
+              <div className="mt-6 p-6 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                <p className="text-blue-300 font-semibold mb-4 flex items-center gap-2">
+                  <span className="text-lg">📋</span>
+                  Generated Questions ({generatedQuestions.length})
+                </p>
+                <div className="space-y-3">
+                  {generatedQuestions.map((question, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition border border-white/10">
+                      <span className="text-blue-400 font-bold text-sm flex-shrink-0 mt-0.5">{idx + 1}.</span>
+                      <span className="text-white/80 text-sm">{question}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-gradient-to-r from-white/0 via-white/10 to-white/0"></div>
+
+          {/* Create Campaign Button */}
+          <button
+            onClick={handleCreateCampaign}
+            disabled={loading || !formData.campaignName.trim()}
+            className="w-full px-6 py-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-xl hover:shadow-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition cursor-pointer text-lg hover:scale-105"
+          >
+            {loading ? '⏳ Creating Campaign...' : '🚀 Create Campaign'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

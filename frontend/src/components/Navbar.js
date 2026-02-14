@@ -14,25 +14,25 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/50">
+    <nav className="sticky top-0 z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 shadow-lg shadow-purple-500/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-18">
           {/* Logo */}
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/40">
                 <span className="text-white font-bold text-lg">F</span>
               </div>
-              <span className="font-bold text-xl text-slate-100 hidden sm:inline">Feedspace</span>
+              <span className="font-bold text-xl text-white hidden sm:inline">Feedspace</span>
             </Link>
           </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
-            <Link href="#features" className="text-slate-400 hover:text-blue-400 font-medium text-sm transition duration-300">
+            <Link href="#features" className="text-white/60 hover:text-white font-medium text-sm transition duration-300">
               Features
             </Link>
-            <Link href="#how-it-works" className="text-slate-400 hover:text-blue-400 font-medium text-sm transition duration-300">
+            <Link href="#how-it-works" className="text-white/60 hover:text-white font-medium text-sm transition duration-300">
               How It Works
             </Link>
           </div>
@@ -40,12 +40,12 @@ export default function Navbar() {
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-4">
             <Link href="/login" className="cursor-pointer">
-              <button className="px-6 py-2 text-slate-400 hover:text-slate-100 font-semibold hover:bg-slate-800/50 rounded-lg transition duration-300 cursor-pointer">
+              <button className="px-6 py-2 text-white/80 hover:text-white font-semibold hover:bg-white/10 rounded-lg transition duration-300 cursor-pointer">
                 Sign In
               </button>
             </Link>
             <Link href="/signup" className="cursor-pointer">
-              <button className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-blue-500/50 transition duration-300 transform hover:scale-105 cursor-pointer">
+              <button className="px-6 py-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/50 transition duration-300 transform hover:scale-105 cursor-pointer">
                 Get Started
               </button>
             </Link>
@@ -66,27 +66,27 @@ export default function Navbar() {
 
         {/* Mobile Navigation */}
         {isOpen && (
-          <div className="md:hidden border-t border-slate-800/50 py-4 space-y-2 bg-slate-950/50 backdrop-blur-sm">
+          <div className="md:hidden border-t border-white/10 py-4 space-y-2 bg-black/40 backdrop-blur-sm">
             <Link
               href="#features"
-              className="block px-3 py-2 text-slate-400 hover:text-blue-400 hover:bg-slate-800/50 rounded-lg font-medium text-sm transition"
+              className="block px-3 py-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg font-medium text-sm transition"
             >
               Features
             </Link>
             <Link
               href="#how-it-works"
-              className="block px-3 py-2 text-slate-400 hover:text-blue-400 hover:bg-slate-800/50 rounded-lg font-medium text-sm transition"
+              className="block px-3 py-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg font-medium text-sm transition"
             >
               How It Works
             </Link>
-            <div className="pt-2 space-y-2 border-t border-slate-800/50">
+            <div className="pt-2 space-y-2 border-t border-white/10">
               <Link href="/login" className="block cursor-pointer">
-                <button className="w-full px-4 py-2 text-slate-400 hover:text-slate-100 font-semibold hover:bg-slate-800/50 rounded-lg transition cursor-pointer">
+                <button className="w-full px-4 py-2 text-white/80 hover:text-white font-semibold hover:bg-white/10 rounded-lg transition cursor-pointer">
                   Sign In
                 </button>
               </Link>
               <Link href="/signup" className="block cursor-pointer">
-                <button className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-blue-500/50 transition cursor-pointer">
+                <button className="w-full px-4 py-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-300 cursor-pointer active:scale-95">
                   Get Started
                 </button>
               </Link>
