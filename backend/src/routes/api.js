@@ -9,6 +9,7 @@ const jobController = require('../controllers/jobController');
 const authController = require('../controllers/authController');
 const projectController = require('../controllers/projectController');
 const testimonialController = require('../controllers/testimonialController');
+const campaignController = require('../controllers/campaignController');
 
 // --- Auth Routes ---
 router.post('/auth/register', authController.register);
@@ -33,6 +34,7 @@ router.route('/testimonials/:id')
 
 // --- Interview Routes ---
 router.post('/prompt', promptController.analyzeUserPrompt);
+router.post('/campaigns/questions', campaignController.generateCampaignQuestions);
 router.post('/session/start', interviewController.startSession);
 router.post('/conversation/next', upload.single('audio'), interviewController.nextTurn);
 router.post('/video/upload', upload.single('video'), videoController.uploadRawVideo);

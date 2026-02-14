@@ -50,7 +50,14 @@ export default function CreateCampaignPage() {
     setError('');
     
     try {
-      const questions = await generateAIQuestions(formData.productDescription);
+      const questions = await generateAIQuestions({
+        companyName: formData.companyName,
+        productName: formData.productName || formData.campaignName,
+        feedbackType: formData.feedbackType,
+        campaignName: formData.campaignName,
+        productDescription: formData.productDescription,
+        questionCount: 10,
+      });
       setGeneratedQuestions(questions);
     } catch (err) {
       setError('Failed to generate questions. Please try again.');
