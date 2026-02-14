@@ -21,7 +21,7 @@ router.route('/projects')
     .get(protect, projectController.getProjects)
     .post(protect, projectController.createProject);
 
-// Public route for getting campaign by ID (for recording page)
+// Public route for getting campaign by ID (for recording page) - MUST be before /:id route
 router.get('/projects/public/:id', projectController.getProjectPublic);
 
 router.route('/projects/:id')
