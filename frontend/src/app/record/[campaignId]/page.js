@@ -18,6 +18,8 @@ export default function RecordPage() {
   const [currentQuestionAudio, setCurrentQuestionAudio] = useState('');
   const [isFetchingQuestion, setIsFetchingQuestion] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const [lastTranscript, setLastTranscript] = useState('');
 
   // Step-based flow
   const [step, setStep] = useState('welcome');
@@ -127,6 +129,54 @@ export default function RecordPage() {
     audio.onended = () => setAiSpeaking(false);
     audio.onerror = () => setAiSpeaking(false);
     audio.play().catch(() => setAiSpeaking(false));
+  };
+
+  const fetchTtsAudio = async (text) => {
+    if (!text) return;
+    setTtsLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/voice/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'TTS failed');
+      }
+
+      const data = await response.json();
+      setCurrentQuestionAudio(data.audioUrl || '');
+      playAiAudio(data.audioUrl || '');
+    } catch (err) {
+      setError(err.message || 'TTS failed');
+    } finally {
+      setTtsLoading(false);
+    }
+  };
+
+  const transcribeLocalAudio = async (audioBlob) => {
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'answer.webm');
+      formData.append('withTimestamps', 'false');
+
+      const response = await fetch('http://localhost:5000/api/voice/stt', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'STT failed');
+      }
+
+      const data = await response.json();
+      setLastTranscript(data.transcript || '');
+    } catch (err) {
+      setError(err.message || 'STT failed');
+    }
   };
 
   const startSessionRecording = (mediaStream) => {
@@ -534,6 +584,12 @@ export default function RecordPage() {
                 </h2>
               </div>
 
+              {ttsLoading && (
+                <div className="glass-sm bg-white/5 border border-white/10 rounded-xl p-4 mb-6 text-center">
+                  <p className="text-white/70 text-sm">Generating voice...</p>
+                </div>
+              )}
+
               {/* Tip */}
               <div className="glass-sm bg-blue-500/10 border border-blue-500/30 rounded-xl p-5 mb-8 text-center">
                 <p className="text-blue-300 text-sm">
@@ -673,6 +729,15 @@ export default function RecordPage() {
               </div>
             </div>
           </div>
+
+          {lastTranscript && (
+            <div className="px-6 pb-6">
+              <div className="glass-sm bg-white/5 border border-white/10 rounded-xl p-4">
+                <p className="text-white/60 text-xs mb-2">Last response (transcribed)</p>
+                <p className="text-white/80 text-sm">{lastTranscript}</p>
+              </div>
+            </div>
+          )}
 
           {/* Bottom Controls */}
           <div className="glass-sm border-t border-white/10 px-6 py-4 flex items-center justify-center gap-4">
