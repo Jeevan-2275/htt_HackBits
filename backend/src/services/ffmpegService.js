@@ -59,10 +59,55 @@ const extractAudio = (inputPath, outputPath) => {
     return new Promise((resolve, reject) => {
         ffmpeg(inputPath)
             .noVideo()
+            .audioCodec('libmp3lame')
+            .audioChannels(1)
+            .audioFrequency(16000)
+            .audioBitrate('64k')
+            .format('mp3')
+            .on('error', (err) => reject(err))
+            .on('end', () => {
+                const stats = fs.statSync(outputPath);
+                console.log(`Audio extracted: ${outputPath} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+                resolve(outputPath);
+            })
+            .save(outputPath);
+    });
+};
+
+const extractAudioWav = (inputPath, outputPath) => {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .noVideo()
             .audioCodec('pcm_s16le')
             .audioChannels(1)
             .audioFrequency(16000)
             .format('wav')
+            .on('error', (err) => reject(err))
+            .on('end', () => {
+                const stats = fs.statSync(outputPath);
+                console.log(`Audio extracted (WAV): ${outputPath} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+                resolve(outputPath);
+            })
+            .save(outputPath);
+    });
+};
+
+const getMediaDuration = (inputPath) => {
+    return new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(inputPath, (err, metadata) => {
+            if (err) return reject(err);
+            resolve(metadata.format.duration || 0);
+        });
+    });
+};
+
+const getAudioDuration = (inputPath) => getMediaDuration(inputPath);
+
+const splitAudio = (inputPath, startTime, duration, outputPath) => {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .setStartTime(startTime)
+            .setDuration(duration)
             .on('error', (err) => reject(err))
             .on('end', () => resolve(outputPath))
             .save(outputPath);
@@ -99,4 +144,33 @@ const burnSubtitles = (inputPath, srtPath, outputPath) => {
     });
 };
 
-module.exports = { generateReel, processVertical, extractAudio, trimClip, burnSubtitles };
+const concatClips = (clipPaths, outputPath) => {
+    return new Promise((resolve, reject) => {
+        if (clipPaths.length === 0) return reject(new Error('No clips to concat'));
+        if (clipPaths.length === 1) {
+            fs.copyFileSync(clipPaths[0], outputPath);
+            return resolve(outputPath);
+        }
+
+        // Create a concat list file for FFmpeg
+        const listPath = outputPath + '.txt';
+        const listContent = clipPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n');
+        fs.writeFileSync(listPath, listContent);
+
+        ffmpeg()
+            .input(listPath)
+            .inputOptions(['-f', 'concat', '-safe', '0'])
+            .outputOptions(['-c', 'copy'])
+            .on('error', (err) => {
+                if (fs.existsSync(listPath)) fs.unlinkSync(listPath);
+                reject(err);
+            })
+            .on('end', () => {
+                if (fs.existsSync(listPath)) fs.unlinkSync(listPath);
+                resolve(outputPath);
+            })
+            .save(outputPath);
+    });
+};
+
+module.exports = { generateReel, processVertical, extractAudio, extractAudioWav, trimClip, burnSubtitles, concatClips, getMediaDuration, getAudioDuration, splitAudio };
