@@ -84,17 +84,30 @@ const generateCampaignQuestions = async ({
     productDescription,
     questionCount
 }) => {
+    const generateMockQuestions = (count) => {
+        const questionTemplates = [
+            `What was your main challenge before using ${productName}?`,
+            `How has ${productName} impacted your business or workflow?`,
+            `What specific features of ${productName} do you use most frequently?`,
+            `How would you describe ${productName} to a colleague or friend?`,
+            `What would you say to someone considering ${productName}?`,
+            `How has ${productName} improved your efficiency or results?`,
+            `What surprised you most about ${productName}?`,
+            `Which aspect of ${productName} has been most valuable to you?`,
+            `How would you rate your overall experience with ${productName}?`,
+            `Would you recommend ${productName} to others? Why?`,
+            `What changes would you suggest to improve ${productName}?`,
+            `How has ${productName} helped you achieve your goals?`
+        ];
+
+        return questionTemplates.slice(0, count);
+    };
+
     try {
         if (!openai) {
-            console.log('⚠️ Using Mock Data for Campaign Questions (API key not configured)');
+            console.log(`⚠️ Using Mock Data for Campaign Questions (API key not configured). Generating ${questionCount} questions.`);
             return {
-                questions: [
-                    "What was your main challenge before using our product?",
-                    "How has our product impacted your business?",
-                    "What features do you use most frequently?",
-                    "How would you rate your overall experience?",
-                    "Would you recommend us to others?"
-                ]
+                questions: generateMockQuestions(questionCount)
             };
         }
 
@@ -105,42 +118,44 @@ const generateCampaignQuestions = async ({
                     content: [
                         'You create customer-facing review prompts for a testimonial recording.',
                         'Questions will be shown directly to the user (first-person prompts like "Tell us...").',
-                        'Return JSON with key "questions": [string].',
-                        `Generate exactly ${questionCount} questions.`,
+                        'Return ONLY valid JSON with key "questions": [string].',
+                        `Generate exactly ${questionCount} questions - no more, no less.`,
                         'Tone: casual and friendly.',
                         'Cover: before/after pain points, product experience, support/service, and results/ROI.',
                         'Questions must be short, specific, and open-ended.',
-                        'Avoid yes/no questions. Do not include numbering.'
+                        'Avoid yes/no questions. Do not include numbering.',
+                        'ALL questions must reference the product name or company.'
                     ].join(' ')
                 },
                 {
                     role: 'user',
-                    content: JSON.stringify({
-                        companyName,
-                        productName,
-                        feedbackType,
-                        campaignName,
-                        productDescription
-                    })
+                    content: `Company: ${companyName}, Product: ${productName}, Feedback Type: ${feedbackType}, Campaign: ${campaignName}, Description: ${productDescription}. Generate exactly ${questionCount} questions for testimonial recording.`
                 }
             ],
             model: "gpt-4-1106-preview",
             response_format: { type: 'json_object' }
         });
 
-        return JSON.parse(completion.choices[0].message.content);
+        const result = JSON.parse(completion.choices[0].message.content);
+        
+        // Ensure we have the right number of questions
+        if (Array.isArray(result.questions) && result.questions.length >= questionCount) {
+            return { questions: result.questions.slice(0, questionCount) };
+        }
+        
+        // If AI didn't generate enough, fill with mock questions
+        if (Array.isArray(result.questions)) {
+            const mockQuestions = generateMockQuestions(questionCount);
+            return { questions: result.questions.concat(mockQuestions).slice(0, questionCount) };
+        }
+
+        throw new Error('Invalid response format from AI');
     } catch (error) {
         console.error('AI Campaign Questions Error:', error.message);
         if (error.code === 'invalid_api_key' || error.status === 401) {
-            console.log('⚠️ Using Mock Data for Campaign Questions');
+            console.log(`⚠️ Using Mock Data for Campaign Questions. Generating ${questionCount} questions.`);
             return {
-                questions: [
-                    "What was your main challenge before using our product?",
-                    "How has our product impacted your business?",
-                    "What features do you use most frequently?",
-                    "How would you rate your overall experience?",
-                    "Would you recommend us to others?"
-                ]
+                questions: generateMockQuestions(questionCount)
             };
         }
         throw error;
