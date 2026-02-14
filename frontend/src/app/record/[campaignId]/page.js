@@ -7,7 +7,10 @@ import campaignService from '@/lib/campaignService';
 export default function RecordPage() {
   const params = useParams();
   const router = useRouter();
-  const campaignId = params.campaignId;
+  
+  // State for campaign ID
+  const [campaignId, setCampaignId] = useState(null);
+  const [paramsReady, setParamsReady] = useState(false);
 
   // Core state
   const [campaign, setCampaign] = useState(null);
@@ -33,32 +36,45 @@ export default function RecordPage() {
   const [processingStep, setProcessingStep] = useState(0);
   const [testimonialId, setTestimonialId] = useState(null);
 
+  // Handle params availability
+  useEffect(() => {
+    if (params && params.campaignId) {
+      console.log('✅ Campaign ID from params:', params.campaignId);
+      setCampaignId(params.campaignId);
+      setParamsReady(true);
+    } else {
+      console.warn('⚠️ Params not ready yet:', params);
+    }
+  }, [params]);
+
   // Load campaign
   useEffect(() => {
     const loadCampaign = async () => {
+      if (!paramsReady || !campaignId) {
+        console.log('⏳ Waiting for campaign ID... paramsReady:', paramsReady, 'campaignId:', campaignId);
+        return;
+      }
+
       try {
-        console.log('📥 Loading campaign with ID:', campaignId);
+        console.log('🔄 Loading campaign:', campaignId);
         // Use public method (no auth required)
         const data = await campaignService.getPublicCampaignById(campaignId);
-        console.log('✅ Campaign loaded:', data);
         if (!data) {
           setError('Campaign not found');
-          console.error('❌ Campaign not found for ID:', campaignId);
         } else {
+          console.log('✅ Campaign loaded:', data);
           setCampaign(data);
         }
       } catch (err) {
-        console.error('Error loading campaign:', err);
+        console.error('❌ Error loading campaign:', err);
         setError(err.message || 'Failed to load campaign');
       } finally {
         setLoading(false);
       }
     };
     
-    if (campaignId) {
-      loadCampaign();
-    }
-  }, [campaignId]);
+    loadCampaign();
+  }, [campaignId, paramsReady]);
 
   // Recording timer
   useEffect(() => {
