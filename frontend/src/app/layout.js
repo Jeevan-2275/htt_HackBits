@@ -1,5 +1,6 @@
 import { Inter } from 'next/font/google';
 import LayoutWrapper from '@/components/LayoutWrapper';
+import { AuthProvider } from '@/context/AuthContext';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -52,9 +53,11 @@ export default function RootLayout({ children }) {
         <div className="fixed bottom-0 left-1/2 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-5 animate-pulse delay-4000"></div>
 
         <div className="relative z-10">
-          <LayoutWrapper>
-            {children}
-          </LayoutWrapper>
+          <AuthProvider>
+            <LayoutWrapper>
+              {children}
+            </LayoutWrapper>
+          </AuthProvider>
         </div>
       </body>
     </html>

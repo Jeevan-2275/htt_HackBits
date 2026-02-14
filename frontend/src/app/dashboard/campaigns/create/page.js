@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createCampaign, generateAIQuestions } from '@/lib/mockApi';
+import { useAuth } from '@/context/AuthContext';
+import campaignService from '@/lib/campaignService';
 
 export default function CreateCampaignPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [formData, setFormData] = useState({
     campaignName: '',
     productDescription: '',
@@ -23,6 +25,16 @@ export default function CreateCampaignPage() {
   const [emails, setEmails] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState(false);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="p-6 md:p-10 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-slate-400">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -50,8 +62,15 @@ export default function CreateCampaignPage() {
     setError('');
     
     try {
-      const questions = await generateAIQuestions(formData.productDescription);
-      setGeneratedQuestions(questions);
+      // For now, use default questions. In the future, integrate with AI API
+      const defaultQuestions = [
+        "What problem were you facing before using this product?",
+        "How did this product improve your workflow?",
+        "What measurable results did you achieve?",
+        "How easy was it to integrate this product into your business?",
+        "Would you recommend this product to others? Why?"
+      ];
+      setGeneratedQuestions(defaultQuestions);
     } catch (err) {
       setError('Failed to generate questions. Please try again.');
     } finally {
@@ -65,31 +84,37 @@ export default function CreateCampaignPage() {
       return;
     }
 
+    if (!generatedQuestions || generatedQuestions.length === 0) {
+      setError('Please generate or add questions for this campaign');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      const campaign = await createCampaign(
-        formData.campaignName,
-        formData.productDescription,
-        generatedQuestions.length > 0 ? generatedQuestions : undefined,
-        {
-          companyName: formData.companyName,
-          productName: formData.productName || formData.campaignName,
-          feedbackType: formData.feedbackType,
-          companyLogo: formData.companyLogo,
-        }
-      );
+      const campaignPayload = {
+        name: formData.campaignName,
+        description: formData.productDescription,
+        questions: generatedQuestions,
+        productName: formData.productName || formData.campaignName,
+        feedbackType: formData.feedbackType,
+        companyName: formData.companyName,
+        companyLogo: formData.companyLogo,
+      };
+
+      const campaign = await campaignService.createCampaign(campaignPayload);
       setCreatedCampaign(campaign);
     } catch (err) {
-      setError('Failed to create campaign. Please try again.');
+      setError(err.message || 'Failed to create campaign. Please try again.');
+      console.error('Campaign creation error:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleCopyLink = () => {
-    const publicLink = `${window.location.origin}/record/${createdCampaign.id}`;
+    const publicLink = `${window.location.origin}/record/${createdCampaign._id}`;
     navigator.clipboard.writeText(publicLink);
     alert('Public link copied to clipboard!');
   };
@@ -115,7 +140,7 @@ export default function CreateCampaignPage() {
         return;
       }
 
-      const publicLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/record/${createdCampaign.id}`;
+      const publicLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/record/${createdCampaign._id}`;
       
       // Call the email API endpoint
       const response = await fetch('/api/send-email', {

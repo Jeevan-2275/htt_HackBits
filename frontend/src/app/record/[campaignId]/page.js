@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getCampaignById } from '@/lib/mockApi';
+import campaignService from '@/lib/campaignService';
 
 export default function RecordPage() {
   const params = useParams();
@@ -37,19 +37,24 @@ export default function RecordPage() {
   useEffect(() => {
     const loadCampaign = async () => {
       try {
-        const data = await getCampaignById(campaignId);
+        // Use public method (no auth required)
+        const data = await campaignService.getPublicCampaignById(campaignId);
         if (!data) {
           setError('Campaign not found');
         } else {
           setCampaign(data);
         }
       } catch (err) {
-        setError('Failed to load campaign');
+        console.error('Error loading campaign:', err);
+        setError(err.message || 'Failed to load campaign');
       } finally {
         setLoading(false);
       }
     };
-    loadCampaign();
+    
+    if (campaignId) {
+      loadCampaign();
+    }
   }, [campaignId]);
 
   // Recording timer
