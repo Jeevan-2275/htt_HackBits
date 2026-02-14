@@ -75,6 +75,78 @@ const generateNextQuestion = async (history, intentMap, currentGoal) => {
     }
 };
 
+// Generate Campaign Questions
+const generateCampaignQuestions = async ({
+    companyName,
+    productName,
+    feedbackType,
+    campaignName,
+    productDescription,
+    questionCount
+}) => {
+    try {
+        if (!openai) {
+            console.log('⚠️ Using Mock Data for Campaign Questions (API key not configured)');
+            return {
+                questions: [
+                    "What was your main challenge before using our product?",
+                    "How has our product impacted your business?",
+                    "What features do you use most frequently?",
+                    "How would you rate your overall experience?",
+                    "Would you recommend us to others?"
+                ]
+            };
+        }
+
+        const completion = await openai.chat.completions.create({
+            messages: [
+                {
+                    role: 'system',
+                    content: [
+                        'You create customer-facing review prompts for a testimonial recording.',
+                        'Questions will be shown directly to the user (first-person prompts like "Tell us...").',
+                        'Return JSON with key "questions": [string].',
+                        `Generate exactly ${questionCount} questions.`,
+                        'Tone: casual and friendly.',
+                        'Cover: before/after pain points, product experience, support/service, and results/ROI.',
+                        'Questions must be short, specific, and open-ended.',
+                        'Avoid yes/no questions. Do not include numbering.'
+                    ].join(' ')
+                },
+                {
+                    role: 'user',
+                    content: JSON.stringify({
+                        companyName,
+                        productName,
+                        feedbackType,
+                        campaignName,
+                        productDescription
+                    })
+                }
+            ],
+            model: "gpt-4-1106-preview",
+            response_format: { type: 'json_object' }
+        });
+
+        return JSON.parse(completion.choices[0].message.content);
+    } catch (error) {
+        console.error('AI Campaign Questions Error:', error.message);
+        if (error.code === 'invalid_api_key' || error.status === 401) {
+            console.log('⚠️ Using Mock Data for Campaign Questions');
+            return {
+                questions: [
+                    "What was your main challenge before using our product?",
+                    "How has our product impacted your business?",
+                    "What features do you use most frequently?",
+                    "How would you rate your overall experience?",
+                    "Would you recommend us to others?"
+                ]
+            };
+        }
+        throw error;
+    }
+};
+
 const fs = require('fs');
 const path = require('path');
 
@@ -125,4 +197,4 @@ const generateSpeech = async (text) => {
     }
 };
 
-module.exports = { analyzePrompt, generateNextQuestion, generateSpeech };
+module.exports = { analyzePrompt, generateNextQuestion, generateSpeech, generateCampaignQuestions };

@@ -4,7 +4,7 @@ const upload = require('../utils/fileUpload');
 const { protect } = require('../middleware/auth');
 const promptController = require('../controllers/promptController');
 const interviewController = require('../controllers/interviewController');
-
+const campaignController = require('../controllers/campaignController');
 const jobController = require('../controllers/jobController');
 const videoController = require('../controllers/videoController');
 const authController = require('../controllers/authController');
@@ -28,6 +28,9 @@ router.route('/projects/:id')
     .get(protect, projectController.getProject)
     .put(protect, projectController.updateProject)
     .delete(protect, projectController.deleteProject);
+
+// --- Campaign Routes ---
+router.post('/campaigns/questions', campaignController.generateCampaignQuestions);
 
 // --- Testimonial / Session Management Routes ---
 router.get('/projects/:projectId/testimonials', protect, testimonialController.getTestimonials);
