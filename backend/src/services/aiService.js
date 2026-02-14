@@ -70,6 +70,8 @@ const generateCampaignQuestions = async ({
                         `Generate exactly ${questionCount} questions.`,
                         'Tone: casual and friendly.',
                         'Cover: before/after pain points, product experience, support/service, and results/ROI.',
+                        'Questions must be strictly and only about the specified product and company.',
+                        'Do not mention other brands or unrelated topics.',
                         'Questions must be short, specific, and open-ended.',
                         'Avoid yes/no questions. Do not include numbering.'
                     ].join(' ')
@@ -92,6 +94,77 @@ const generateCampaignQuestions = async ({
         return JSON.parse(completion.choices[0].message.content);
     } catch (error) {
         console.error('AI Campaign Questions Error:', error.message);
+        throw error;
+    }
+};
+
+const detectSentiment = async (text) => {
+    try {
+        const completion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: 'system',
+                    content: [
+                        'Classify the sentiment of the user response.',
+                        'Return JSON with key "sentiment": "positive" | "negative" | "neutral".',
+                        'Only return JSON.'
+                    ].join(' ')
+                },
+                { role: 'user', content: text }
+            ],
+            model: AI_MODEL,
+            response_format: { type: 'json_object' }
+        });
+
+        const parsed = JSON.parse(completion.choices[0].message.content);
+        const sentiment = String(parsed.sentiment || '').toLowerCase();
+        if (['positive', 'negative', 'neutral'].includes(sentiment)) return sentiment;
+        return 'neutral';
+    } catch (error) {
+        console.error('AI Sentiment Error:', error.message);
+        return 'neutral';
+    }
+};
+
+const generateFollowupQuestion = async ({
+    baseQuestion,
+    lastAnswer,
+    sentiment,
+    context
+}) => {
+    try {
+        const completion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: 'system',
+                    content: [
+                        'You are a customer review assistant.',
+                        'You must keep questions strictly about the specified company and product.',
+                        'Use the base question as the main topic, but lightly adapt it to the user response.',
+                        'If sentiment is negative, start with a brief empathy line ("Sorry about that..."), then ask.',
+                        'If sentiment is positive, add a short positive acknowledgment ("That is great to hear!") then ask.',
+                        'If neutral, ask directly without extra fluff.',
+                        'Return JSON with key "question": string. No numbering.'
+                    ].join(' ')
+                },
+                {
+                    role: 'user',
+                    content: JSON.stringify({
+                        baseQuestion,
+                        lastAnswer,
+                        sentiment,
+                        context
+                    })
+                }
+            ],
+            model: AI_MODEL,
+            response_format: { type: 'json_object' }
+        });
+
+        const parsed = JSON.parse(completion.choices[0].message.content);
+        return String(parsed.question || '').trim();
+    } catch (error) {
+        console.error('AI Followup Error:', error.message);
         throw error;
     }
 };
@@ -134,4 +207,11 @@ const generateSpeech = async (text) => {
     }
 };
 
-module.exports = { analyzePrompt, generateNextQuestion, generateSpeech, generateCampaignQuestions };
+module.exports = {
+    analyzePrompt,
+    generateNextQuestion,
+    generateSpeech,
+    generateCampaignQuestions,
+    detectSentiment,
+    generateFollowupQuestion
+};
