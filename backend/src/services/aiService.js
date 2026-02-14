@@ -1,6 +1,5 @@
 const Groq = require('groq-sdk');
 const dotenv = require('dotenv');
-const { exec } = require('child_process');
 
 dotenv.config();
 
@@ -184,21 +183,9 @@ const generateSpeech = async (text) => {
 
         // Use edge-tts CLI to generate speech
         const voice = process.env.TTS_VOICE || 'en-US-AnaNeural';
-        const escapedText = text.replace(/"/g, '\\"');
+        const { ttsSave } = await import('edge-tts/out/index.js');
 
-        await new Promise((resolve, reject) => {
-            exec(
-                `npx edge-tts --voice "${voice}" --text "${escapedText}" --write-media "${filePath}"`,
-                { timeout: 30000 },
-                (error, stdout, stderr) => {
-                    if (error) {
-                        console.error('edge-tts error:', error.message);
-                        return reject(error);
-                    }
-                    resolve();
-                }
-            );
-        });
+        await ttsSave(text, filePath, { voice });
 
         return filePath;
     } catch (error) {
