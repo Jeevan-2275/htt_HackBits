@@ -3,13 +3,26 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+let openai;
+if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
+    openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
+    });
+} else {
+    console.warn('⚠️  OPENAI_API_KEY not configured. AI features will use mock data.');
+    openai = null;
+}
 
 // Generate Interview Goal & Intent Map
 const analyzePrompt = async (userPromptText) => {
     try {
+        if (!openai) {
+            console.log('⚠️ Using Mock Data for Analyze Prompt (API key not configured)');
+            return {
+                goal: "Analyze the user's background and experience",
+                intentMap: ["Introduction", "Experience", "Challenges", "Future Goals"]
+            };
+        }
         const completion = await openai.chat.completions.create({
             messages: [
                 { role: "system", content: "You are an expert interviewer. Analyze the user's request and outline an interview strategy. Return JSON with 'goal' (string) and 'intentMap' (array of 3-5 sub-topics/questions)." },
@@ -36,6 +49,10 @@ const analyzePrompt = async (userPromptText) => {
 // Generate Next Question
 const generateNextQuestion = async (history, intentMap, currentGoal) => {
     try {
+        if (!openai) {
+            console.log('⚠️ Using Mock Data for Next Question (API key not configured)');
+            return "That's interesting! Can you tell me more about that?";
+        }
         const messages = [
             { role: "system", content: `You are a friendly assistant collecting user feedback in a casual, warm conversation. Goal: ${currentGoal}. Topics to naturally cover: ${intentMap.join(', ')}. Be enthusiastic and conversational like chatting with a friend. Ask follow-up questions based on what the user just said. React positively to their answers ("That's awesome!", "Love that!", "Great to hear!"). Keep questions short and natural. Do not repeat questions or sound robotic.` },
             ...history.map(turn => ({ role: turn.role === 'ai' ? 'assistant' : 'user', content: turn.content })),
@@ -64,6 +81,18 @@ const path = require('path');
 // Generate Speech (TTS)
 const generateSpeech = async (text) => {
     try {
+        if (!openai) {
+            console.log('⚠️ Using Mock Data for TTS (API key not configured)');
+            // Create a dummy file
+            const uploadDir = 'uploads/';
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir);
+            }
+            const fileName = `mock-speech-${Date.now()}.mp3`;
+            const filePath = path.join(uploadDir, fileName);
+            await fs.promises.writeFile(filePath, 'MOCK AUDIO CONTENT');
+            return filePath;
+        }
         const mp3 = await openai.audio.speech.create({
             model: "tts-1",
             voice: "nova",

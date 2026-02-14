@@ -4,11 +4,8 @@ const upload = require('../utils/fileUpload');
 const { protect } = require('../middleware/auth');
 const promptController = require('../controllers/promptController');
 const interviewController = require('../controllers/interviewController');
-<<<<<<< HEAD
-=======
-const jobController = require('../controllers/jobController');
 
->>>>>>> 19c6a13b6733212b1ab508c1d0a2f140551b4e76
+const jobController = require('../controllers/jobController');
 const videoController = require('../controllers/videoController');
 const authController = require('../controllers/authController');
 const projectController = require('../controllers/projectController');
@@ -23,6 +20,9 @@ router.get('/auth/me', protect, authController.getMe);
 router.route('/projects')
     .get(protect, projectController.getProjects)
     .post(protect, projectController.createProject);
+
+// Public route for getting campaign by ID (for recording page)
+router.get('/projects/public/:id', projectController.getProjectPublic);
 
 router.route('/projects/:id')
     .get(protect, projectController.getProject)
