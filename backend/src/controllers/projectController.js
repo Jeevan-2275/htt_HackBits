@@ -46,30 +46,49 @@ exports.getProject = async (req, res) => {
 // @access  Public
 exports.getProjectPublic = async (req, res) => {
     try {
-        const project = await Project.findById(req.params.id);
+        const id = req.params.id;
+        
+        if (!id || id === 'undefined') {
+            console.error('❌ Invalid campaign ID:', id);
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Invalid campaign ID',
+                details: 'Campaign ID is required'
+            });
+        }
+        
+        console.log('📍 Getting public project with ID:', id);
+        
+        const project = await Project.findById(id);
+        
+        console.log('📍 Project result:', project ? `Found - ${project._id}` : 'Not found');
 
         if (!project) {
+            console.error('❌ Campaign not found for ID:', id);
             return res.status(404).json({ success: false, error: 'Campaign not found' });
         }
 
         // Return only necessary fields for recording (no userId for security)
+        const responseData = {
+            _id: project._id,
+            name: project.name,
+            description: project.description,
+            questions: project.questions,
+            productName: project.productName,
+            companyName: project.companyName,
+            companyLogo: project.companyLogo,
+            feedbackType: project.feedbackType,
+            createdAt: project.createdAt
+        };
+        
+        console.log('✅ Returning public project:', project._id);
         res.status(200).json({ 
             success: true, 
-            data: {
-                _id: project._id,
-                name: project.name,
-                description: project.description,
-                questions: project.questions,
-                productName: project.productName,
-                companyName: project.companyName,
-                companyLogo: project.companyLogo,
-                feedbackType: project.feedbackType,
-                createdAt: project.createdAt
-            }
+            data: responseData
         });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, error: 'Server Error' });
+        console.error('❌ Error in getProjectPublic:', error.message);
+        res.status(500).json({ success: false, error: 'Server Error', details: error.message });
     }
 };
 
