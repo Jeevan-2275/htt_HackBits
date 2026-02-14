@@ -1,10 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Hide navbar on dashboard and protected routes
+  if (pathname?.startsWith('/dashboard') || pathname?.startsWith('/login') || pathname?.startsWith('/signup')) {
+    return null;
+  }
 
   return (
     <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/50">
@@ -14,9 +21,9 @@ export default function Navbar() {
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <span className="text-white font-bold text-lg">T</span>
+                <span className="text-white font-bold text-lg">F</span>
               </div>
-              <span className="font-bold text-xl text-slate-100 hidden sm:inline">TestimoAI</span>
+              <span className="font-bold text-xl text-slate-100 hidden sm:inline">Feedspace</span>
             </Link>
           </div>
 
@@ -28,19 +35,20 @@ export default function Navbar() {
             <Link href="#how-it-works" className="text-slate-400 hover:text-blue-400 font-medium text-sm transition duration-300">
               How It Works
             </Link>
-            <Link href="#" className="text-slate-400 hover:text-blue-400 font-medium text-sm transition duration-300">
-              Login
-            </Link>
           </div>
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-4">
-            <button className="px-6 py-2 text-slate-400 hover:text-slate-200 font-medium hover:bg-slate-800/50 rounded-lg transition duration-300">
-              Login
-            </button>
-            <button className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-blue-500/50 transition duration-300 transform hover:scale-105">
-              Get Started
-            </button>
+            <Link href="/login" className="cursor-pointer">
+              <button className="px-6 py-2 text-slate-400 hover:text-slate-100 font-semibold hover:bg-slate-800/50 rounded-lg transition duration-300 cursor-pointer">
+                Sign In
+              </button>
+            </Link>
+            <Link href="/signup" className="cursor-pointer">
+              <button className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-blue-500/50 transition duration-300 transform hover:scale-105 cursor-pointer">
+                Get Started
+              </button>
+            </Link>
           </div>
 
           {/* Mobile Menu Toggle */}
@@ -72,12 +80,16 @@ export default function Navbar() {
               How It Works
             </Link>
             <div className="pt-2 space-y-2 border-t border-slate-800/50">
-              <button className="w-full px-4 py-2 text-slate-400 hover:text-slate-200 font-medium hover:bg-slate-800/50 rounded-lg transition">
-                Login
-              </button>
-              <button className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg transition">
-                Get Started
-              </button>
+              <Link href="/login" className="block cursor-pointer">
+                <button className="w-full px-4 py-2 text-slate-400 hover:text-slate-100 font-semibold hover:bg-slate-800/50 rounded-lg transition cursor-pointer">
+                  Sign In
+                </button>
+              </Link>
+              <Link href="/signup" className="block cursor-pointer">
+                <button className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-blue-500/50 transition cursor-pointer">
+                  Get Started
+                </button>
+              </Link>
             </div>
           </div>
         )}

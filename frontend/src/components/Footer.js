@@ -1,7 +1,16 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 export default function Footer() {
+  const pathname = usePathname();
   const currentYear = new Date().getFullYear();
+
+  // Hide footer on dashboard and protected routes
+  if (pathname?.startsWith('/dashboard') || pathname?.startsWith('/login') || pathname?.startsWith('/signup')) {
+    return null;
+  }
 
   return (
     <footer className="bg-slate-900 text-slate-400 border-t border-slate-800/50">
@@ -12,9 +21,9 @@ export default function Footer() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <span className="text-white font-bold text-lg">T</span>
+                <span className="text-white font-bold text-lg">F</span>
               </div>
-              <span className="font-bold text-lg text-slate-100">TestimoAI</span>
+              <span className="font-bold text-lg text-slate-100">Feedspace</span>
             </div>
             <p className="text-sm text-slate-500">
               Transform customer stories into powerful marketing assets with AI.
@@ -103,7 +112,7 @@ export default function Footer() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             {/* Copyright */}
             <p className="text-sm text-slate-500">
-              © {currentYear} TestimoAI. All rights reserved.
+              © {currentYear} Feedspace. All rights reserved.
             </p>
 
             {/* Social Links */}

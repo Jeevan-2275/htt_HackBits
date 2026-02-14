@@ -1,7 +1,13 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
 export default function Home() {
+  const router = useRouter();
+
   return (
     <>
-      {/* Hero Section */}
       <section className="relative min-h-screen bg-slate-950 overflow-hidden py-20 md:py-32">
         {/* Background Gradient Blobs */}
         <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse"></div>
@@ -21,10 +27,14 @@ export default function Home() {
                 Collect, process and publish AI-powered video testimonials instantly. No editing skills required.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <button className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold rounded-xl hover:shadow-2xl hover:shadow-blue-500/50 transition duration-300 transform hover:scale-105">
-                  Get Started Free
-                </button>
-                <button className="px-8 py-4 border-2 border-slate-700 text-slate-100 font-bold rounded-xl hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/20 transition duration-300">
+                <Link href="/signup" className="cursor-pointer w-full">
+                  <button className="w-full px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold rounded-xl hover:shadow-2xl hover:shadow-blue-500/50 transition duration-300 transform hover:scale-105 cursor-pointer">
+                    Get Started Free
+                  </button>
+                </Link>
+                <button 
+                  onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="w-full px-8 py-4 border-2 border-slate-700 text-slate-100 font-bold rounded-xl hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/20 transition duration-300 cursor-pointer">
                   Watch Demo
                 </button>
               </div>
@@ -385,9 +395,11 @@ export default function Home() {
           <p className="text-lg md:text-xl text-blue-100 mb-8 max-w-2xl mx-auto leading-relaxed">
             Join hundreds of companies turning customer stories into their most powerful marketing asset.
           </p>
-          <button className="px-10 py-4 bg-white text-blue-600 font-bold rounded-xl hover:shadow-2xl hover:scale-105 transition duration-300 text-lg transform">
-            Create Free Campaign
-          </button>
+          <Link href="/signup" className="cursor-pointer inline-block">
+            <button className="px-10 py-4 bg-white text-blue-600 font-bold rounded-xl hover:shadow-2xl hover:scale-105 transition duration-300 text-lg transform cursor-pointer">
+              Create Free Campaign
+            </button>
+          </Link>
           <p className="text-blue-100 text-sm mt-6">
             No credit card needed • Start free • Upgrade anytime
           </p>
