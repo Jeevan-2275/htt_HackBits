@@ -27,12 +27,16 @@ const extractHighlights = async (transcriptText, segments) => {
                 {
                     role: 'system',
                     content: [
-                        'You extract 3 to 5 powerful testimonial highlights.',
+                        'You are a testimonial video editor AI.',
+                        'Extract the most powerful, emotionally compelling highlights from this testimonial.',
+                        'IMPORTANT: Select highlights so their TOTAL duration adds up to approximately 25-35 seconds (target: 30 seconds).',
+                        'Pick 2 to 4 highlights. Each highlight can be 6-15 seconds long.',
+                        'Prefer segments that: show genuine emotion, mention specific results/numbers, express strong recommendations, or describe transformation.',
                         'Return JSON with key "highlights":',
                         '[{ "quote": string, "start": number, "end": number }].',
                         'Use segment timestamps to set start and end in seconds.',
                         'Quotes must be verbatim from the transcript.',
-                        'Keep each quote concise (under 20 seconds of speech).'
+                        'Order highlights for best storytelling flow (context first, impact last).'
                     ].join(' ')
                 },
                 {
