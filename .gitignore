@@ -1,0 +1,95 @@
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Production builds
+dist/
+build/
+.next/
+out/
+
+# Logs
+logs/
+*.log
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE/Editor Files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Temporary Files
+uploads/
+temp/
+tmp/
+*.tmp
+
+# FFmpeg outputs
+*.mp4
+*.mp3
+*.wav
+*.avi
+*.mov
+*.srt
+!backend/uploads/.gitkeep
+
+# Video/Audio test files (keep small samples if needed)
+test-videos/
+test-audio/
+
+# Database
+*.sqlite
+*.db
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Testing
+.cache/
+
+# Mac
+.AppleDouble
+.LSOverride
+
+# Windows
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# MongoDB
+data/
+
+# Cloudinary cache
+.cloudinary/
+
+# Next.js (frontend specific)
+.next/
+out/
+.vercel
+
+# Misc
+*.pem
+.pnp.*
+.yarn/
