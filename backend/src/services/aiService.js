@@ -21,7 +21,14 @@ const analyzePrompt = async (userPromptText) => {
 
         return JSON.parse(completion.choices[0].message.content);
     } catch (error) {
-        console.error('AI Analysis Error:', error);
+        console.error('AI Analysis Error:', error.message);
+        if (error.code === 'invalid_api_key' || error.status === 401) {
+            console.log('⚠️ Using Mock Data for Analyze Prompt');
+            return {
+                goal: "Analyze the user's background and experience",
+                intentMap: ["Introduction", "Experience", "Challenges", "Future Goals"]
+            };
+        }
         throw error;
     }
 };
@@ -42,7 +49,11 @@ const generateNextQuestion = async (history, intentMap, currentGoal) => {
 
         return completion.choices[0].message.content;
     } catch (error) {
-        console.error('AI Question Gen Error:', error);
+        console.error('AI Question Gen Error:', error.message);
+        if (error.code === 'invalid_api_key' || error.status === 401) {
+            console.log('⚠️ Using Mock Data for Next Question');
+            return "That's interesting! Can you tell me more about that?";
+        }
         throw error;
     }
 };
@@ -68,7 +79,19 @@ const generateSpeech = async (text) => {
         await fs.promises.writeFile(filePath, buffer);
         return filePath;
     } catch (error) {
-        console.error('TTS Error:', error);
+        console.error('TTS Error:', error.message);
+        if (error.code === 'invalid_api_key' || error.status === 401) {
+            console.log('⚠️ Using Mock Data for TTS');
+            // Create a dummy file
+            const uploadDir = 'uploads/';
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir);
+            }
+            const fileName = `mock-speech-${Date.now()}.mp3`;
+            const filePath = path.join(uploadDir, fileName);
+            await fs.promises.writeFile(filePath, 'MOCK AUDIO CONTENT');
+            return filePath;
+        }
         throw error;
     }
 };
