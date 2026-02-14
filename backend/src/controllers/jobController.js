@@ -14,6 +14,12 @@ const downloadFile = (url, dest) => {
     return new Promise((resolve, reject) => {
         const file = fs.createWriteStream(dest);
         https.get(url, (response) => {
+            // Handle redirects
+            if (response.statusCode === 301 || response.statusCode === 302) {
+                file.close();
+                fs.unlink(dest, () => { });
+                return downloadFile(response.headers.location, dest).then(resolve).catch(reject);
+            }
             response.pipe(file);
             file.on('finish', () => {
                 file.close(resolve);
@@ -192,26 +198,35 @@ const processJobAsync = async (sessionId) => {
             return;
         }
 
-        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
+        console.log(`[JOB ${sessionId}] Step 1: Downloading video...`);
         const localVideoPath = path.join(tempDir, `${videoAsset._id}.mp4`);
         await downloadFile(videoAsset.cloudinaryUrl, localVideoPath);
+        console.log(`[JOB ${sessionId}] Step 1 DONE: Video downloaded (${fs.statSync(localVideoPath).size} bytes)`);
 
+        console.log(`[JOB ${sessionId}] Step 2: Extracting audio...`);
         const audioPath = path.join(tempDir, `audio_${sessionId}.wav`);
         await ffmpegService.extractAudio(localVideoPath, audioPath);
+        console.log(`[JOB ${sessionId}] Step 2 DONE: Audio extracted`);
 
+        console.log(`[JOB ${sessionId}] Step 3: Transcribing audio (Whisper)...`);
         const transcription = await transcriptionService.transcribeAudioWithTimestamps(audioPath);
+        console.log(`[JOB ${sessionId}] Step 3 DONE: Transcript = "${transcription.text.substring(0, 100)}..."`);
         session.transcript = transcription.text;
         session.transcriptSegments = transcription.segments;
         await session.save();
 
+        console.log(`[JOB ${sessionId}] Step 4: Extracting highlights (GPT-4)...`);
         const highlights = await highlightService.extractHighlights(
             transcription.text,
             transcription.segments
         );
+        console.log(`[JOB ${sessionId}] Step 4 DONE: Found ${highlights.length} highlights`);
 
         const createdClips = [];
         for (let i = 0; i < highlights.length; i += 1) {
+            console.log(`[JOB ${sessionId}] Step 5: Processing clip ${i + 1}/${highlights.length}...`);
             const highlight = highlights[i];
             const range = (typeof highlight.start === 'number' && typeof highlight.end === 'number')
                 ? { start: highlight.start, end: highlight.end }
