@@ -75,6 +75,56 @@ const generateNextQuestion = async (history, intentMap, currentGoal) => {
     }
 };
 
+const fs = require('fs');
+const path = require('path');
+
+// Generate Speech (TTS)
+const generateSpeech = async (text) => {
+    try {
+        if (!openai) {
+            console.log('⚠️ Using Mock Data for TTS (API key not configured)');
+            // Create a dummy file
+            const uploadDir = 'uploads/';
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir);
+            }
+            const fileName = `mock-speech-${Date.now()}.mp3`;
+            const filePath = path.join(uploadDir, fileName);
+            await fs.promises.writeFile(filePath, 'MOCK AUDIO CONTENT');
+            return filePath;
+        }
+        const mp3 = await openai.audio.speech.create({
+            model: "tts-1",
+            voice: "nova",
+            input: text,
+        });
+        const buffer = Buffer.from(await mp3.arrayBuffer());
+        const fileName = `speech-${Date.now()}.mp3`;
+        const uploadDir = 'uploads/';
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir);
+        }
+        const filePath = path.join(uploadDir, fileName);
+        await fs.promises.writeFile(filePath, buffer);
+        return filePath;
+    } catch (error) {
+        console.error('TTS Error:', error.message);
+        if (error.code === 'invalid_api_key' || error.status === 401) {
+            console.log('⚠️ Using Mock Data for TTS');
+            // Create a dummy file
+            const uploadDir = 'uploads/';
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir);
+            }
+            const fileName = `mock-speech-${Date.now()}.mp3`;
+            const filePath = path.join(uploadDir, fileName);
+            await fs.promises.writeFile(filePath, 'MOCK AUDIO CONTENT');
+            return filePath;
+        }
+        throw error;
+    }
+};
+
 // Generate Campaign Questions
 const generateCampaignQuestions = async ({
     companyName,
@@ -157,56 +207,6 @@ const generateCampaignQuestions = async ({
             return {
                 questions: generateMockQuestions(questionCount)
             };
-        }
-        throw error;
-    }
-};
-
-const fs = require('fs');
-const path = require('path');
-
-// Generate Speech (TTS)
-const generateSpeech = async (text) => {
-    try {
-        if (!openai) {
-            console.log('⚠️ Using Mock Data for TTS (API key not configured)');
-            // Create a dummy file
-            const uploadDir = 'uploads/';
-            if (!fs.existsSync(uploadDir)) {
-                fs.mkdirSync(uploadDir);
-            }
-            const fileName = `mock-speech-${Date.now()}.mp3`;
-            const filePath = path.join(uploadDir, fileName);
-            await fs.promises.writeFile(filePath, 'MOCK AUDIO CONTENT');
-            return filePath;
-        }
-        const mp3 = await openai.audio.speech.create({
-            model: "tts-1",
-            voice: "nova",
-            input: text,
-        });
-        const buffer = Buffer.from(await mp3.arrayBuffer());
-        const fileName = `speech-${Date.now()}.mp3`;
-        const uploadDir = 'uploads/';
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir);
-        }
-        const filePath = path.join(uploadDir, fileName);
-        await fs.promises.writeFile(filePath, buffer);
-        return filePath;
-    } catch (error) {
-        console.error('TTS Error:', error.message);
-        if (error.code === 'invalid_api_key' || error.status === 401) {
-            console.log('⚠️ Using Mock Data for TTS');
-            // Create a dummy file
-            const uploadDir = 'uploads/';
-            if (!fs.existsSync(uploadDir)) {
-                fs.mkdirSync(uploadDir);
-            }
-            const fileName = `mock-speech-${Date.now()}.mp3`;
-            const filePath = path.join(uploadDir, fileName);
-            await fs.promises.writeFile(filePath, 'MOCK AUDIO CONTENT');
-            return filePath;
         }
         throw error;
     }
