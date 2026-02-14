@@ -1,13 +1,13 @@
-const OpenAI = require('openai');
+const Groq = require('groq-sdk');
 const dotenv = require('dotenv');
 
 dotenv.config();
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY
 });
 
-const HIGHLIGHT_MODEL = process.env.OPENAI_HIGHLIGHT_MODEL || 'gpt-4o';
+const HIGHLIGHT_MODEL = process.env.GROQ_HIGHLIGHT_MODEL || 'llama-3.3-70b-versatile';
 
 const extractHighlights = async (transcriptText, segments) => {
     try {
@@ -20,7 +20,7 @@ const extractHighlights = async (transcriptText, segments) => {
             }))
         };
 
-        const completion = await openai.chat.completions.create({
+        const completion = await groq.chat.completions.create({
             model: HIGHLIGHT_MODEL,
             response_format: { type: 'json_object' },
             messages: [
