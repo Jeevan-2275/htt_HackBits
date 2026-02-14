@@ -10,6 +10,10 @@ export default function CreateCampaignPage() {
   const [formData, setFormData] = useState({
     campaignName: '',
     productDescription: '',
+    companyName: '',
+    productName: '',
+    feedbackType: 'General Feedback',
+    companyLogo: null,
   });
   const [generatedQuestions, setGeneratedQuestions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -23,6 +27,17 @@ export default function CreateCampaignPage() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFormData((prev) => ({ ...prev, companyLogo: event.target.result }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleGenerateQuestions = async () => {
@@ -57,7 +72,13 @@ export default function CreateCampaignPage() {
       const campaign = await createCampaign(
         formData.campaignName,
         formData.productDescription,
-        generatedQuestions.length > 0 ? generatedQuestions : undefined
+        generatedQuestions.length > 0 ? generatedQuestions : undefined,
+        {
+          companyName: formData.companyName,
+          productName: formData.productName || formData.campaignName,
+          feedbackType: formData.feedbackType,
+          companyLogo: formData.companyLogo,
+        }
       );
       setCreatedCampaign(campaign);
     } catch (err) {
@@ -274,6 +295,89 @@ export default function CreateCampaignPage() {
               <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
               Campaign Information
             </h2>
+
+            {/* Company Logo */}
+            <div className="mb-6">
+              <label htmlFor="companyLogo" className="block text-sm font-semibold text-white/80 mb-3">
+                Company Logo (Optional)
+              </label>
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <input
+                    id="companyLogo"
+                    name="companyLogo"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                  />
+                </div>
+                {formData.companyLogo && (
+                  <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/10">
+                    <img
+                      src={formData.companyLogo}
+                      alt="Company Logo Preview"
+                      className="w-full h-full object-contain bg-white/5"
+                    />
+                  </div>
+                )}
+              </div>
+              <p className="text-white/40 text-xs mt-2">Upload a PNG, JPG or GIF (max 2MB)</p>
+            </div>
+            
+            {/* Company Name */}
+            <div className="mb-6">
+              <label htmlFor="companyName" className="block text-sm font-semibold text-white/80 mb-3">
+                Company Name
+              </label>
+              <input
+                id="companyName"
+                name="companyName"
+                type="text"
+                value={formData.companyName}
+                onChange={handleInputChange}
+                placeholder="e.g., Apple Inc"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+              />
+            </div>
+
+            {/* Product Name */}
+            <div className="mb-6">
+              <label htmlFor="productName" className="block text-sm font-semibold text-white/80 mb-3">
+                Product Name
+              </label>
+              <input
+                id="productName"
+                name="productName"
+                type="text"
+                value={formData.productName}
+                onChange={handleInputChange}
+                placeholder="e.g., iPhone 15 Pro"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+              />
+            </div>
+
+            {/* Feedback Type */}
+            <div className="mb-6">
+              <label htmlFor="feedbackType" className="block text-sm font-semibold text-white/80 mb-3">
+                Feedback Type / Category
+              </label>
+              <select
+                id="feedbackType"
+                name="feedbackType"
+                value={formData.feedbackType}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+              >
+                <option value="General Feedback">General Feedback</option>
+                <option value="Product Review">Product Review</option>
+                <option value="Feature Request">Feature Request</option>
+                <option value="Customer Story">Customer Story</option>
+                <option value="Case Study">Case Study</option>
+                <option value="User Experience">User Experience</option>
+                <option value="Implementation Feedback">Implementation Feedback</option>
+              </select>
+            </div>
             
             {/* Campaign Name */}
             <div className="mb-6">
