@@ -55,4 +55,48 @@ const processVertical = (inputPath, outputPath) => {
     });
 };
 
-module.exports = { generateReel, processVertical };
+const extractAudio = (inputPath, outputPath) => {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .noVideo()
+            .audioCodec('pcm_s16le')
+            .audioChannels(1)
+            .audioFrequency(16000)
+            .format('wav')
+            .on('error', (err) => reject(err))
+            .on('end', () => resolve(outputPath))
+            .save(outputPath);
+    });
+};
+
+const trimClip = (inputPath, startTime, endTime, outputPath) => {
+    const duration = Math.max(0, endTime - startTime);
+
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .setStartTime(startTime)
+            .setDuration(duration)
+            .on('error', (err) => reject(err))
+            .on('end', () => resolve(outputPath))
+            .save(outputPath);
+    });
+};
+
+const escapeSubtitlePath = (filePath) => {
+    return filePath.replace(/\\/g, '\\\\').replace(/:/g, '\\:');
+};
+
+const burnSubtitles = (inputPath, srtPath, outputPath) => {
+    const escapedPath = escapeSubtitlePath(srtPath);
+    const filter = `subtitles='${escapedPath}'`;
+
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .videoFilters(filter)
+            .on('error', (err) => reject(err))
+            .on('end', () => resolve(outputPath))
+            .save(outputPath);
+    });
+};
+
+module.exports = { generateReel, processVertical, extractAudio, trimClip, burnSubtitles };
