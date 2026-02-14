@@ -1,3 +1,4 @@
+const Project = require('../models/Project'); // Import Project model
 const InterviewSession = require('../models/InterviewSession');
 const ConversationTurn = require('../models/ConversationTurn');
 const UserPrompt = require('../models/UserPrompt');
@@ -10,10 +11,21 @@ const fs = require('fs');
 // @route   POST /api/session/start
 exports.startSession = async (req, res) => {
     try {
-        const { promptId } = req.body;
+        const { promptId, projectId } = req.body;
+
+        if (!projectId) {
+            return res.status(400).json({ error: 'Project ID is required' });
+        }
+
+        // Verify Project Exists
+        const project = await Project.findById(projectId);
+        if (!project) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
 
         const session = await InterviewSession.create({
             promptId,
+            projectId,
             status: 'active'
         });
 
