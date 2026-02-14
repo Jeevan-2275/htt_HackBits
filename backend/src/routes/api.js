@@ -4,6 +4,11 @@ const upload = require('../utils/fileUpload');
 const { protect } = require('../middleware/auth');
 const promptController = require('../controllers/promptController');
 const interviewController = require('../controllers/interviewController');
+<<<<<<< HEAD
+=======
+const jobController = require('../controllers/jobController');
+
+>>>>>>> 19c6a13b6733212b1ab508c1d0a2f140551b4e76
 const videoController = require('../controllers/videoController');
 const authController = require('../controllers/authController');
 const projectController = require('../controllers/projectController');
@@ -37,6 +42,10 @@ router.post('/conversation/next', upload.single('audio'), interviewController.ne
 router.post('/video/upload', upload.single('video'), videoController.uploadRawVideo);
 router.post('/process/highlights', videoController.processHighlightsForSession);
 router.post('/process/reel', videoController.generateReelForSession);
+
+// Job Routes (Simplified Pipeline)
+router.post('/jobs/create', upload.single('video'), jobController.createJob);
+router.get('/jobs/:jobId', jobController.getJobStatus);
 
 // Status Route
 router.get('/health', (req, res) => res.json({ status: 'OK' }));

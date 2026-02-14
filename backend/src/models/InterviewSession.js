@@ -4,7 +4,7 @@ const InterviewSessionSchema = new mongoose.Schema({
     promptId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'UserPrompt',
-        required: true
+        required: false
     },
     projectId: {
         type: mongoose.Schema.Types.ObjectId,

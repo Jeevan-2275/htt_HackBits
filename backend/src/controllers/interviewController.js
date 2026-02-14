@@ -34,7 +34,7 @@ exports.startSession = async (req, res) => {
         if (!promptData) return res.status(404).json({ error: 'Prompt not found' });
 
         // Initial Greeting/Question
-        const firstQuestion = `Hi there! I'm your AI interviewer. I'd love to hear about ${promptData.interviewGoal}. Shall we start?`;
+        const firstQuestion = `Hey! Thanks for taking a few minutes to share your thoughts. I'd love to hear about your experience with ${promptData.interviewGoal}. Ready when you are!`;
 
         // Generate Audio for first question
         const audioPath = await aiService.generateSpeech(firstQuestion);

@@ -37,7 +37,7 @@ const analyzePrompt = async (userPromptText) => {
 const generateNextQuestion = async (history, intentMap, currentGoal) => {
     try {
         const messages = [
-            { role: "system", content: `You are an AI interviewer conducting a testimonial collection. Goal: ${currentGoal}. Topics: ${intentMap.join(', ')}. Keep questions short, conversational, and encouraging. Do not repeat questions.` },
+            { role: "system", content: `You are a friendly assistant collecting user feedback in a casual, warm conversation. Goal: ${currentGoal}. Topics to naturally cover: ${intentMap.join(', ')}. Be enthusiastic and conversational like chatting with a friend. Ask follow-up questions based on what the user just said. React positively to their answers ("That's awesome!", "Love that!", "Great to hear!"). Keep questions short and natural. Do not repeat questions or sound robotic.` },
             ...history.map(turn => ({ role: turn.role === 'ai' ? 'assistant' : 'user', content: turn.content })),
         ];
 
@@ -66,7 +66,7 @@ const generateSpeech = async (text) => {
     try {
         const mp3 = await openai.audio.speech.create({
             model: "tts-1",
-            voice: "alloy",
+            voice: "nova",
             input: text,
         });
         const buffer = Buffer.from(await mp3.arrayBuffer());
