@@ -259,12 +259,27 @@ export const getTestimonialsByCampaign = async (campaignId) => {
 
 // ============ DUMMY QUESTIONS ============
 
-export const generateAIQuestions = async (productDescription) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // In a real scenario, this would call an AI API
-      // For now, we return dummy questions
-      resolve(DUMMY_QUESTIONS);
-    }, 800);
+export const generateAIQuestions = async (payload) => {
+  const response = await fetch('http://localhost:5000/api/campaigns/questions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      companyName: payload.companyName,
+      productName: payload.productName,
+      feedbackType: payload.feedbackType,
+      campaignName: payload.campaignName,
+      productDescription: payload.productDescription,
+      questionCount: payload.questionCount || 10,
+    }),
   });
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || 'Failed to generate questions');
+  }
+
+  const data = await response.json();
+  return data.data?.questions || DUMMY_QUESTIONS;
 };

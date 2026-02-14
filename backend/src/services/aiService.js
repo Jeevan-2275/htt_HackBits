@@ -50,6 +50,52 @@ const generateNextQuestion = async (history, intentMap, currentGoal) => {
     }
 };
 
+const generateCampaignQuestions = async ({
+    companyName,
+    productName,
+    feedbackType,
+    campaignName,
+    productDescription,
+    questionCount
+}) => {
+    try {
+        const completion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: 'system',
+                    content: [
+                        'You create customer-facing review prompts for a testimonial recording.',
+                        'Questions will be shown directly to the user (first-person prompts like "Tell us...").',
+                        'Return JSON with key "questions": [string].',
+                        `Generate exactly ${questionCount} questions.`,
+                        'Tone: casual and friendly.',
+                        'Cover: before/after pain points, product experience, support/service, and results/ROI.',
+                        'Questions must be short, specific, and open-ended.',
+                        'Avoid yes/no questions. Do not include numbering.'
+                    ].join(' ')
+                },
+                {
+                    role: 'user',
+                    content: JSON.stringify({
+                        companyName,
+                        productName,
+                        feedbackType,
+                        campaignName,
+                        productDescription
+                    })
+                }
+            ],
+            model: AI_MODEL,
+            response_format: { type: 'json_object' }
+        });
+
+        return JSON.parse(completion.choices[0].message.content);
+    } catch (error) {
+        console.error('AI Campaign Questions Error:', error.message);
+        throw error;
+    }
+};
+
 const fs = require('fs');
 const path = require('path');
 
@@ -88,4 +134,4 @@ const generateSpeech = async (text) => {
     }
 };
 
-module.exports = { analyzePrompt, generateNextQuestion, generateSpeech };
+module.exports = { analyzePrompt, generateNextQuestion, generateSpeech, generateCampaignQuestions };
