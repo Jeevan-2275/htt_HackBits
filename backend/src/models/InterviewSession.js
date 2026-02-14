@@ -20,6 +20,25 @@ const InterviewSessionSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    transcriptSegments: {
+        type: [
+            {
+                start: Number,
+                end: Number,
+                text: String
+            }
+        ],
+        default: []
+    },
+    clipAssetIds: {
+        type: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'ClipAsset'
+            }
+        ],
+        default: []
+    },
     // Metadata for the video processing pipeline
     videoAssetId: {
         type: mongoose.Schema.Types.ObjectId,
