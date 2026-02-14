@@ -44,7 +44,11 @@ router.post('/process/reel', videoController.generateReelForSession);
 
 // --- Voice Routes ---
 router.post('/voice/tts', voiceController.textToSpeech);
+router.post('/voice/tts-batch', voiceController.batchTextToSpeech);
 router.post('/voice/stt', upload.single('audio'), voiceController.speechToText);
+router.get('/voice/voices', voiceController.getAvailableVoices);
+router.get('/voice/cache-stats', voiceController.getCacheStats);
+router.delete('/voice/cache', voiceController.clearCache);
 
 // Job Routes (Simplified Pipeline)
 router.post('/jobs/create', upload.single('video'), jobController.createJob);

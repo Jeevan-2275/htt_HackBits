@@ -168,30 +168,11 @@ const generateFollowupQuestion = async ({
     }
 };
 
-const fs = require('fs');
-const path = require('path');
+const ttsService = require('./ttsService');
 
-// Generate Speech (TTS) using edge-tts (FREE)
-const generateSpeech = async (text) => {
-    try {
-        const fileName = `speech-${Date.now()}.mp3`;
-        const uploadDir = 'uploads/';
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir);
-        }
-        const filePath = path.join(uploadDir, fileName);
-
-        // Use edge-tts CLI to generate speech
-        const voice = process.env.TTS_VOICE || 'en-US-AnaNeural';
-        const { ttsSave } = await import('edge-tts/out/index.js');
-
-        await ttsSave(text, filePath, { voice });
-
-        return filePath;
-    } catch (error) {
-        console.error('TTS Error:', error.message);
-        throw error;
-    }
+// Generate Speech (TTS) using enhanced ttsService
+const generateSpeech = async (text, voiceOption = null) => {
+    return ttsService.generateSpeech(text, voiceOption);
 };
 
 module.exports = {

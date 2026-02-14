@@ -20,6 +20,15 @@ export default function RecordPage() {
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [ttsLoading, setTtsLoading] = useState(false);
   const [lastTranscript, setLastTranscript] = useState('');
+  const [selectedVoice, setSelectedVoice] = useState('en-US-AnaNeural');
+  const [availableVoices, setAvailableVoices] = useState({
+    'en-US': ['en-US-AnaNeural', 'en-US-AriaNeural', 'en-US-GuyNeural', 'en-US-JennyNeural'],
+    'en-GB': ['en-GB-AmyNeural', 'en-GB-RyanNeural', 'en-GB-SoniaNeural'],
+    'en-IN': ['en-IN-NeerjaNeural', 'en-IN-PrabhatNeural'],
+    'es-ES': ['es-ES-AlvaroNeural', 'es-ES-ElviraNeural'],
+    'fr-FR': ['fr-FR-DeniseNeural', 'fr-FR-HenriNeural'],
+    'de-DE': ['de-DE-AmalaNeural', 'de-DE-ConradNeural']
+  });
 
   // Step-based flow
   const [step, setStep] = useState('welcome');
@@ -60,6 +69,28 @@ export default function RecordPage() {
       }
     };
     loadCampaign();
+
+    // Load available voices from backend
+    const fetchVoices = async () => {
+      try {
+        console.log('[TTS] Fetching available voices from backend...');
+        const response = await fetch('http://localhost:5000/api/voice/voices');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.voices && Object.keys(data.voices).length > 0) {
+            console.log('[TTS] ✓ Voices loaded from backend:', data.voices);
+            setAvailableVoices(data.voices);
+          } else {
+            console.log('[TTS] Backend returned empty voices, using defaults');
+          }
+        } else {
+          console.warn('[TTS] Backend returned error status:', response.status);
+        }
+      } catch (err) {
+        console.warn('[TTS] Failed to fetch voices from backend (using defaults):', err.message);
+      }
+    };
+    fetchVoices();
   }, [campaignId]);
 
   // Recording timer
@@ -118,42 +149,93 @@ export default function RecordPage() {
   }, [isRecording, isUsingBackendQuestions]);
 
   const playAiAudio = (audioUrl) => {
-    if (!audioUrl) return;
-    if (aiAudioRef.current) {
-      aiAudioRef.current.pause();
-      aiAudioRef.current = null;
+    // If it's a URL (from backend), use regular audio playback
+    if (audioUrl && (audioUrl.startsWith('http') || audioUrl.startsWith('blob'))) {
+      console.log('[AUDIO] 🔊 Playing audio from URL:', audioUrl);
+      
+      if (aiAudioRef.current) {
+        aiAudioRef.current.pause();
+        aiAudioRef.current = null;
+      }
+      
+      const audio = new Audio(audioUrl);
+      aiAudioRef.current = audio;
+      
+      audio.onplay = () => {
+        console.log('[AUDIO] ▶️ Audio started playing');
+        setAiSpeaking(true);
+      };
+      
+      audio.onended = () => {
+        console.log('[AUDIO] ✅ Audio finished');
+        setAiSpeaking(false);
+      };
+      
+      audio.onerror = (e) => {
+        console.error('[AUDIO] ❌ Audio error:', e);
+        setAiSpeaking(false);
+      };
+      
+      audio.play()
+        .then(() => console.log('[AUDIO] ✓ Play promise resolved'))
+        .catch((err) => {
+          console.error('[AUDIO] ❌ Play failed:', err);
+          setAiSpeaking(false);
+        });
+      
+      return;
     }
-    const audio = new Audio(audioUrl);
-    aiAudioRef.current = audio;
-    audio.onplay = () => setAiSpeaking(true);
-    audio.onended = () => setAiSpeaking(false);
-    audio.onerror = () => setAiSpeaking(false);
-    audio.play().catch(() => setAiSpeaking(false));
+    
+    // Use Web Speech API (browser's native text-to-speech)
+    if (!audioUrl || typeof audioUrl !== 'string') {
+      console.warn('[AUDIO] ⚠️ No text provided for synthesis');
+      return;
+    }
+    
+    console.log('[AUDIO] 🗣️ Using browser Web Speech API for text:', audioUrl.substring(0, 50));
+    
+    // Cancel any ongoing speech
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    
+    const utterance = new SpeechSynthesisUtterance(audioUrl);
+    // Increase rate for faster playback (0.9-1.5 range, 1.3 is faster but still natural)
+    utterance.rate = 1.3;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    
+    utterance.onstart = () => {
+      console.log('[AUDIO] ▶️ Speech synthesis started');
+      setAiSpeaking(true);
+    };
+    
+    utterance.onend = () => {
+      console.log('[AUDIO] ✅ Speech synthesis finished');
+      setAiSpeaking(false);
+    };
+    
+    utterance.onerror = (e) => {
+      console.error('[AUDIO] ❌ Speech synthesis error:', e);
+      setAiSpeaking(false);
+    };
+    
+    if (window.speechSynthesis) {
+      // Use immediate speak without delay
+      window.speechSynthesis.speak(utterance);
+      console.log('[AUDIO] ⏱️ Speech synthesis queued immediately');
+    } else {
+      console.error('[AUDIO] ❌ Web Speech API not supported');
+    }
   };
 
   const fetchTtsAudio = async (text) => {
     if (!text) return;
-    setTtsLoading(true);
-    try {
-      const response = await fetch('http://localhost:5000/api/voice/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'TTS failed');
-      }
-
-      const data = await response.json();
-      setCurrentQuestionAudio(data.audioUrl || '');
-      playAiAudio(data.audioUrl || '');
-    } catch (err) {
-      setError(err.message || 'TTS failed');
-    } finally {
-      setTtsLoading(false);
-    }
+    
+    console.log('[TTS] 🗣️ Synthesizing text immediately:', text.substring(0, 50));
+    
+    // Play directly without waiting (non-blocking)
+    playAiAudio(text);
   };
 
   const transcribeLocalAudio = async (audioBlob) => {
@@ -253,7 +335,15 @@ export default function RecordPage() {
       setCurrentQuestionText(data.question?.text || '');
       setCurrentQuestionAudio(data.question?.audio || '');
       setCurrentQuestionIndex(0);
-      playAiAudio(data.question?.audio || '');
+      
+      // Auto-generate audio if not provided
+      if (data.question?.audio) {
+        console.log('[TTS] Playing provided question audio');
+        playAiAudio(data.question.audio);
+      } else if (data.question?.text) {
+        console.log('[TTS] Auto-generating audio for question:', data.question.text.substring(0, 40));
+        fetchTtsAudio(data.question.text);
+      }
     } catch (err) {
       setError(err.message || 'Failed to start session');
     } finally {
@@ -298,7 +388,15 @@ export default function RecordPage() {
       setCurrentQuestionIndex((prev) => prev + 1);
       setCurrentQuestionText(data.reply?.text || '');
       setCurrentQuestionAudio(data.reply?.audio || '');
-      playAiAudio(data.reply?.audio || '');
+      
+      // Auto-generate audio if not provided
+      if (data.reply?.audio) {
+        playAiAudio(data.reply.audio);
+      } else if (data.reply?.text) {
+        console.log('[TTS] Auto-generating audio for question:', data.reply.text.substring(0, 40));
+        fetchTtsAudio(data.reply.text);
+      }
+      
       setStep('question');
     } catch (err) {
       setError(err.message || 'Failed to get next question');
@@ -310,8 +408,88 @@ export default function RecordPage() {
   useEffect(() => {
     if (step === 'question' && isUsingBackendQuestions) {
       startBackendSession();
+    } else if (step === 'question' && !isUsingBackendQuestions && campaign?.questions[currentQuestionIndex]) {
+      // Auto-generate audio for local questions
+      const questionText = campaign.questions[currentQuestionIndex];
+      if (questionText && !currentQuestionAudio) {
+        console.log('[TTS] Auto-generating audio for local question:', questionText.substring(0, 40));
+        fetchTtsAudio(questionText);
+      }
     }
-  }, [step, isUsingBackendQuestions]);
+  }, [step, isUsingBackendQuestions, currentQuestionIndex]);
+
+  // Auto-start recording when question finishes playing
+  useEffect(() => {
+    if (step === 'recording' && !isRecording && !isFetchingQuestion && !aiSpeaking) {
+      console.log('[AUTO] 🎬 Auto-starting recording after question finishes...');
+      // Small delay to ensure question finished playing
+      const timer = setTimeout(() => {
+        if (!isRecording) {
+          startRecording();
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [step, aiSpeaking, isRecording, isFetchingQuestion]);
+
+  // Auto-stop recording after 3 seconds of silence
+  const silenceTimerRef = useRef(null);
+  const lastSoundTimeRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!isRecording || !mediaRecorderRef.current) return;
+
+    // Monitor for silence using audio context
+    const monitorSilence = setInterval(() => {
+      // If recording and no sound for 3 seconds, stop
+      if (lastSoundTimeRef.current && (Date.now() - lastSoundTimeRef.current) > 3000) {
+        console.log('[AUTO] 🛑 Auto-stopping recording after 3s silence');
+        stopRecording();
+        clearInterval(monitorSilence);
+      }
+    }, 500);
+
+    return () => clearInterval(monitorSilence);
+  }, [isRecording]);
+
+  // Track sound activity
+  useEffect(() => {
+    if (!stream || !isRecording) return;
+
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const analyser = audioContext.createAnalyser();
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let silenceStart = Date.now();
+
+      const detectSound = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+
+        // If sound detected (above threshold of 30), update Last Sound Time
+        if (average > 30) {
+          lastSoundTimeRef.current = Date.now();
+          silenceStart = Date.now();
+        }
+
+        if (isRecording) {
+          requestAnimationFrame(detectSound);
+        }
+      };
+
+      detectSound();
+
+      return () => {
+        source.disconnect();
+        audioContext.close();
+      };
+    } catch (err) {
+      console.warn('[AUDIO] Could not setup silence detection:', err);
+    }
+  }, [stream, isRecording]);
 
   // Format time as MM:SS
   const formatTime = (seconds) => {
@@ -534,6 +712,36 @@ export default function RecordPage() {
                 />
               </div>
 
+              {/* Voice Selector */}
+              <div className="mb-8">
+                <label className="block text-white/70 text-sm font-medium mb-3">Select AI Voice</label>
+                <select
+                  value={selectedVoice}
+                  onChange={(e) => {
+                    setSelectedVoice(e.target.value);
+                    console.log('[TTS] Voice selected:', e.target.value);
+                  }}
+                  className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-white/20 transition duration-300 text-lg"
+                  style={{
+                    colorScheme: 'light'
+                  }}
+                >
+                  <option style={{ color: 'black', backgroundColor: 'white' }} value="">
+                    -- Select a voice --
+                  </option>
+                  {Object.entries(availableVoices).map(([language, voices]) => (
+                    <optgroup key={language} label={language} style={{ color: 'black' }}>
+                      {voices.map((voice) => (
+                        <option key={voice} value={voice} style={{ color: 'black', backgroundColor: 'white' }}>
+                          {voice.replace(/-/g, ' ')}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <p className="text-white/50 text-xs mt-2">💡 Unlimited AI voices powered by Microsoft Edge TTS (FREE)</p>
+              </div>
+
               <button
                 onClick={() => customerName.trim() && setStep('question')}
                 disabled={!customerName.trim()}
@@ -624,11 +832,36 @@ export default function RecordPage() {
         <div className="relative z-10 h-screen flex flex-col animate-fadeIn">
           {/* Top Bar - Question & Timer */}
           <div className="glass-sm border-b border-white/10 px-6 py-4 flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-white/70 text-sm font-medium">Current Question</p>
-              <h3 className="text-white text-lg font-bold truncate max-w-2xl">
-                {isUsingBackendQuestions ? (currentQuestionText || '...') : campaign.questions[currentQuestionIndex]}
-              </h3>
+            <div className="flex-1 flex items-center gap-4">
+              {/* Play Audio Button */}
+              <button
+                onClick={() => {
+                  if (currentQuestionAudio) {
+                    playAiAudio(currentQuestionAudio);
+                  } else {
+                    const questionText = isUsingBackendQuestions 
+                      ? currentQuestionText 
+                      : campaign.questions[currentQuestionIndex];
+                    if (questionText) {
+                      fetchTtsAudio(questionText);
+                    }
+                  }
+                }}
+                disabled={ttsLoading}
+                className="flex-shrink-0 p-3 rounded-lg bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Play question audio"
+              >
+                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </button>
+
+              <div className="flex-1">
+                <p className="text-white/70 text-sm font-medium">Current Question</p>
+                <h3 className="text-white text-lg font-bold truncate max-w-2xl">
+                  {isUsingBackendQuestions ? (currentQuestionText || '...') : campaign.questions[currentQuestionIndex]}
+                </h3>
+              </div>
             </div>
             
             {/* Timer */}
