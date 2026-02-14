@@ -13,6 +13,11 @@ export default function RecordPage() {
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sessionId, setSessionId] = useState(null);
+  const [currentQuestionText, setCurrentQuestionText] = useState('');
+  const [currentQuestionAudio, setCurrentQuestionAudio] = useState('');
+  const [isFetchingQuestion, setIsFetchingQuestion] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   // Step-based flow
   const [step, setStep] = useState('welcome');
@@ -22,6 +27,9 @@ export default function RecordPage() {
   // Recording state
   const videoRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const sessionRecorderRef = useRef(null);
+  const sessionChunksRef = useRef([]);
+  const aiAudioRef = useRef(null);
   const [stream, setStream] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -95,15 +103,165 @@ export default function RecordPage() {
     }
   }, [stream, step]);
 
-  // Simulate AI speaking every 3-5 seconds
+  const isUsingBackendQuestions = Boolean(campaign?.questionSetId);
+
+  // Simulate AI speaking only for local questions
   useEffect(() => {
-    if (!isRecording) return;
+    if (!isRecording || isUsingBackendQuestions) return;
     const speakInterval = setInterval(() => {
       setAiSpeaking(false);
       setTimeout(() => setAiSpeaking(true), 2000);
     }, 4000);
     return () => clearInterval(speakInterval);
-  }, [isRecording]);
+  }, [isRecording, isUsingBackendQuestions]);
+
+  const playAiAudio = (audioUrl) => {
+    if (!audioUrl) return;
+    if (aiAudioRef.current) {
+      aiAudioRef.current.pause();
+      aiAudioRef.current = null;
+    }
+    const audio = new Audio(audioUrl);
+    aiAudioRef.current = audio;
+    audio.onplay = () => setAiSpeaking(true);
+    audio.onended = () => setAiSpeaking(false);
+    audio.onerror = () => setAiSpeaking(false);
+    audio.play().catch(() => setAiSpeaking(false));
+  };
+
+  const startSessionRecording = (mediaStream) => {
+    if (!isUsingBackendQuestions) return;
+    if (sessionRecorderRef.current) return;
+
+    sessionChunksRef.current = [];
+    const recorder = new MediaRecorder(mediaStream);
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        sessionChunksRef.current.push(event.data);
+      }
+    };
+    recorder.start();
+    sessionRecorderRef.current = recorder;
+  };
+
+  const stopSessionRecordingAndUpload = async () => {
+    if (!sessionRecorderRef.current) return;
+
+    const recorder = sessionRecorderRef.current;
+    sessionRecorderRef.current = null;
+
+    const videoBlob = await new Promise((resolve) => {
+      recorder.onstop = () => {
+        const blob = new Blob(sessionChunksRef.current, { type: 'video/webm' });
+        resolve(blob);
+      };
+      recorder.stop();
+    });
+
+    setUploadingVideo(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('video', videoBlob, 'session.webm');
+
+      const response = await fetch('http://localhost:5000/api/jobs/create', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to upload video');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to upload video');
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  const startBackendSession = async () => {
+    if (!campaign?.questionSetId || sessionId || isFetchingQuestion) return;
+    setIsFetchingQuestion(true);
+    setError('');
+
+    try {
+      const response = await fetch('http://localhost:5000/api/session/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionSetId: campaign.questionSetId })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to start session');
+      }
+
+      const data = await response.json();
+      setSessionId(data.sessionId);
+      setCurrentQuestionText(data.question?.text || '');
+      setCurrentQuestionAudio(data.question?.audio || '');
+      setCurrentQuestionIndex(0);
+      playAiAudio(data.question?.audio || '');
+    } catch (err) {
+      setError(err.message || 'Failed to start session');
+    } finally {
+      setIsFetchingQuestion(false);
+    }
+  };
+
+  const fetchNextQuestion = async (audioBlob) => {
+    if (!sessionId) return;
+    setIsFetchingQuestion(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('sessionId', sessionId);
+      formData.append('audio', audioBlob, 'answer.webm');
+
+      const response = await fetch('http://localhost:5000/api/conversation/next', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to get next question');
+      }
+
+      const data = await response.json();
+      if (data.completed) {
+        await stopSessionRecordingAndUpload();
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+          setStream(null);
+        }
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
+        setStep('completed');
+        return;
+      }
+
+      setCurrentQuestionIndex((prev) => prev + 1);
+      setCurrentQuestionText(data.reply?.text || '');
+      setCurrentQuestionAudio(data.reply?.audio || '');
+      playAiAudio(data.reply?.audio || '');
+      setStep('question');
+    } catch (err) {
+      setError(err.message || 'Failed to get next question');
+    } finally {
+      setIsFetchingQuestion(false);
+    }
+  };
+
+  useEffect(() => {
+    if (step === 'question' && isUsingBackendQuestions) {
+      startBackendSession();
+    }
+  }, [step, isUsingBackendQuestions]);
 
   // Format time as MM:SS
   const formatTime = (seconds) => {
@@ -116,18 +274,21 @@ export default function RecordPage() {
   const startRecording = async () => {
     try {
       setError('');
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
+      let mediaStream = stream;
+      if (!mediaStream) {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+      }
 
       setStream(mediaStream);
       
@@ -139,7 +300,8 @@ export default function RecordPage() {
         }
       }, 0);
 
-      const mediaRecorder = new MediaRecorder(mediaStream);
+      const audioStream = new MediaStream(mediaStream.getAudioTracks());
+      const mediaRecorder = new MediaRecorder(audioStream);
       mediaRecorderRef.current = mediaRecorder;
       const chunks = [];
 
@@ -150,10 +312,14 @@ export default function RecordPage() {
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
+        const blob = new Blob(chunks, { type: 'audio/webm' });
         setRecordedChunks([blob]);
+        if (isUsingBackendQuestions && sessionId) {
+          fetchNextQuestion(blob);
+        }
       };
 
+      startSessionRecording(mediaStream);
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingTime(0);
@@ -170,28 +336,34 @@ export default function RecordPage() {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
 
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-        setStream(null);
+      if (!isUsingBackendQuestions) {
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+          setStream(null);
+        }
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
       }
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-
-      // Check if more questions
-      if (currentQuestionIndex < campaign.questions.length - 1) {
-        // Smooth transition to next question
-        setTimeout(() => {
-          setCurrentQuestionIndex(currentQuestionIndex + 1);
-          setRecordedChunks([]);
-          setStep('question');
-        }, 800);
+      if (!isUsingBackendQuestions) {
+        // Check if more questions
+        if (currentQuestionIndex < campaign.questions.length - 1) {
+          // Smooth transition to next question
+          setTimeout(() => {
+            setCurrentQuestionIndex(currentQuestionIndex + 1);
+            setRecordedChunks([]);
+            setStep('question');
+          }, 800);
+        } else {
+          // All questions done - move to completed
+          setTimeout(() => {
+            setStep('completed');
+          }, 800);
+        }
       } else {
-        // All questions done - move to completed
-        setTimeout(() => {
-          setStep('completed');
-        }, 800);
+        setStep('question');
       }
     }
   };
@@ -293,7 +465,7 @@ export default function RecordPage() {
                 <p className="text-white/60 text-sm mb-2">Recording for</p>
                 <h2 className="text-2xl font-bold text-white mb-4">{campaign.name}</h2>
                 <div className="flex gap-4 text-white/70 text-sm">
-                  <span>📝 {campaign.questions.length} questions</span>
+                    <span>📝 {campaign.questions.length} questions</span>
                   <span>⏱️ ~{Math.ceil(campaign.questions.length * 60 / 2)} seconds</span>
                 </div>
               </div>
@@ -358,7 +530,7 @@ export default function RecordPage() {
               {/* Question Text */}
               <div className="text-center mb-10">
                 <h2 className="text-3xl md:text-4xl font-bold text-white leading-relaxed">
-                  {campaign.questions[currentQuestionIndex]}
+                  {isUsingBackendQuestions ? (currentQuestionText || 'Preparing your question...') : campaign.questions[currentQuestionIndex]}
                 </h2>
               </div>
 
@@ -377,6 +549,7 @@ export default function RecordPage() {
 
               <button
                 onClick={startRecording}
+                disabled={isUsingBackendQuestions && (isFetchingQuestion || !currentQuestionText)}
                 className="w-full px-8 py-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 transform hover:scale-105 cursor-pointer flex items-center justify-center gap-3"
               >
                 <div className="relative w-4 h-4">
@@ -398,7 +571,7 @@ export default function RecordPage() {
             <div className="flex-1">
               <p className="text-white/70 text-sm font-medium">Current Question</p>
               <h3 className="text-white text-lg font-bold truncate max-w-2xl">
-                {campaign.questions[currentQuestionIndex]}
+                {isUsingBackendQuestions ? (currentQuestionText || '...') : campaign.questions[currentQuestionIndex]}
               </h3>
             </div>
             
@@ -582,6 +755,8 @@ export default function RecordPage() {
                     setStep('welcome');
                     setCurrentQuestionIndex(0);
                     setRecordedChunks([]);
+                    sessionChunksRef.current = [];
+                    sessionRecorderRef.current = null;
                     setCustomerName('');
                   }}
                   className="w-full px-8 py-3 glass-sm border border-white/10 text-white font-medium rounded-xl hover:bg-white/5 transition-all duration-300 cursor-pointer"
