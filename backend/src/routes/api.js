@@ -1,0 +1,18 @@
+const express = require('express');
+const router = express.Router();
+const upload = require('../utils/fileUpload');
+const promptController = require('../controllers/promptController');
+const interviewController = require('../controllers/interviewController');
+
+const videoController = require('../controllers/videoController');
+
+// Routes
+router.post('/prompt', promptController.analyzeUserPrompt);
+router.post('/session/start', interviewController.startSession);
+router.post('/conversation/next', upload.single('audio'), interviewController.nextTurn);
+router.post('/process/reel', videoController.generateReelForSession);
+
+// Status Route
+router.get('/health', (req, res) => res.json({ status: 'OK' }));
+
+module.exports = router;
