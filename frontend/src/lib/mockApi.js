@@ -281,5 +281,8 @@ export const generateAIQuestions = async (payload) => {
   }
 
   const data = await response.json();
-  return data.data?.questions || DUMMY_QUESTIONS;
+  return {
+    id: data.data?.id || null,
+    questions: data.data?.questions || DUMMY_QUESTIONS
+  };
 };

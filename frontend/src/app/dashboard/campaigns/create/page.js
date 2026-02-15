@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createCampaign, generateAIQuestions } from '@/lib/mockApi';
+import DynamicListInput from '@/components/DynamicListInput';
 
 export default function CreateCampaignPage() {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function CreateCampaignPage() {
     companyLogo: null,
   });
   const [generatedQuestions, setGeneratedQuestions] = useState([]);
+  const [manualQuestions, setManualQuestions] = useState([]);
+  const [questionSetId, setQuestionSetId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [createdCampaign, setCreatedCampaign] = useState(null);
@@ -50,7 +53,7 @@ export default function CreateCampaignPage() {
     setError('');
     
     try {
-      const questions = await generateAIQuestions({
+      const result = await generateAIQuestions({
         companyName: formData.companyName,
         productName: formData.productName || formData.campaignName,
         feedbackType: formData.feedbackType,
@@ -58,7 +61,8 @@ export default function CreateCampaignPage() {
         productDescription: formData.productDescription,
         questionCount: 10,
       });
-      setGeneratedQuestions(questions);
+      setGeneratedQuestions(result.questions || []);
+      setQuestionSetId(result.id || null);
     } catch (err) {
       setError('Failed to generate questions. Please try again.');
     } finally {
@@ -76,15 +80,20 @@ export default function CreateCampaignPage() {
     setError('');
 
     try {
+      const selectedQuestions = manualQuestions.length > 0
+        ? manualQuestions
+        : (generatedQuestions.length > 0 ? generatedQuestions : undefined);
+
       const campaign = await createCampaign(
         formData.campaignName,
         formData.productDescription,
-        generatedQuestions.length > 0 ? generatedQuestions : undefined,
+        selectedQuestions,
         {
           companyName: formData.companyName,
           productName: formData.productName || formData.campaignName,
           feedbackType: formData.feedbackType,
           companyLogo: formData.companyLogo,
+          questionSetId: manualQuestions.length > 0 ? null : questionSetId,
         }
       );
       setCreatedCampaign(campaign);
@@ -472,6 +481,27 @@ export default function CreateCampaignPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-gradient-to-r from-white/0 via-white/10 to-white/0"></div>
+
+          {/* Manual Questions Section */}
+          <div>
+            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-3">
+              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
+              Manual Questions
+            </h2>
+            <p className="text-white/60 text-sm mb-4">
+              Add your own questions. If you add any manual questions, they will be used instead of AI questions.
+            </p>
+            <DynamicListInput
+              label="Custom Questions"
+              items={manualQuestions}
+              onItemsChange={setManualQuestions}
+              placeholder="Type a question and press Enter"
+              maxItems={12}
+            />
           </div>
 
           {/* Divider */}

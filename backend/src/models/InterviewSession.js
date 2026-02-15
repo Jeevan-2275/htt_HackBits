@@ -6,6 +6,15 @@ const InterviewSessionSchema = new mongoose.Schema({
         ref: 'UserPrompt',
         required: false
     },
+    questionSetId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'CampaignQuestionSet',
+        required: false
+    },
+    questionIndex: {
+        type: Number,
+        default: 0
+    },
     projectId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Project',
