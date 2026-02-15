@@ -10,6 +10,7 @@ const videoController = require('../controllers/videoController');
 const authController = require('../controllers/authController');
 const projectController = require('../controllers/projectController');
 const testimonialController = require('../controllers/testimonialController');
+const voiceController = require('../controllers/voiceController');
 
 // --- Auth Routes ---
 router.post('/auth/register', authController.register);
@@ -34,9 +35,13 @@ router.post('/campaigns/questions', campaignController.generateCampaignQuestions
 
 // --- Testimonial / Session Management Routes ---
 router.get('/projects/:projectId/testimonials', protect, testimonialController.getTestimonials);
+router.post('/projects/:projectId/process-all-videos', protect, testimonialController.processAllVideos);
+router.get('/testimonials/campaign/:campaignId', protect, testimonialController.getByCampaign);
 router.route('/testimonials/:id')
     .get(protect, testimonialController.getTestimonial)
     .put(protect, testimonialController.updateTestimonial);
+router.post('/testimonials/:id/generate-reel', protect, testimonialController.generateReelDownload);
+router.post('/testimonials/:id/process-video', protect, testimonialController.processVideoToReel);
 
 // --- Interview Routes ---
 router.post('/prompt', promptController.analyzeUserPrompt);
@@ -45,6 +50,14 @@ router.post('/conversation/next', upload.single('audio'), interviewController.ne
 router.post('/video/upload', upload.single('video'), videoController.uploadRawVideo);
 router.post('/process/highlights', videoController.processHighlightsForSession);
 router.post('/process/reel', videoController.generateReelForSession);
+
+// --- Voice Routes ---
+router.post('/voice/tts', voiceController.textToSpeech);
+router.post('/voice/tts-batch', voiceController.batchTextToSpeech);
+router.post('/voice/stt', upload.single('audio'), voiceController.speechToText);
+router.get('/voice/voices', voiceController.getAvailableVoices);
+router.get('/voice/cache-stats', voiceController.getCacheStats);
+router.delete('/voice/cache', voiceController.clearCache);
 
 // Job Routes (Simplified Pipeline)
 router.post('/jobs/create', upload.single('video'), jobController.createJob);

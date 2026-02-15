@@ -130,7 +130,7 @@ export const getTestimonialById = async (testimonialId) => {
     setTimeout(() => {
       const testimonials = JSON.parse(localStorage.getItem("testimonials") || "[]");
       const campaigns = JSON.parse(localStorage.getItem("campaigns") || "[]");
-      
+
       const testimonial = testimonials.find((t) => t.id === testimonialId);
       if (testimonial) {
         const campaign = campaigns.find((c) => c.id === testimonial.campaignId);
@@ -280,19 +280,26 @@ export const generateAIQuestions = async (payload) => {
 
     if (!response.ok) {
       console.error(`❌ API Error: ${response.status}`);
-      const data = await response.json();
-      console.error('Error details:', data);
-      throw new Error(data.error || `Failed to generate questions (${response.status})`);
+      const errorData = await response.json();
+      console.error('Error details:', errorData);
+      throw new Error(errorData.error || `Failed to generate questions (${response.status})`);
     }
 
     const data = await response.json();
     const isAIGenerated = data.source === 'AI_GENERATED';
     console.log(`${isAIGenerated ? '🤖 AI' : '⚠️ FALLBACK'} Questions:`, data.data?.questions);
-    return data.data?.questions || DUMMY_QUESTIONS;
+    
+    return {
+      id: data.data?.id || null,
+      questions: data.data?.questions || DUMMY_QUESTIONS
+    };
   } catch (error) {
     console.error('❌ Question generation failed:', error.message);
     console.log('⚠️ Falling back to dummy questions');
     // Fallback to dummy questions if API fails
-    return DUMMY_QUESTIONS;
+    return {
+      id: null,
+      questions: DUMMY_QUESTIONS
+    };
   }
 };

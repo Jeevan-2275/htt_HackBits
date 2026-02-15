@@ -51,7 +51,7 @@ class CampaignService {
     try {
       console.log('🔄 Fetching public campaign:', campaignId);
       console.log('📍 API URL:', `${API_URL}/projects/public/${campaignId}`);
-      
+
       const response = await fetch(`${API_URL}/projects/public/${campaignId}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
@@ -145,4 +145,5 @@ class CampaignService {
   }
 }
 
-export default new CampaignService();
+const campaignService = new CampaignService();
+export default campaignService;

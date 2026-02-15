@@ -6,6 +6,15 @@ const InterviewSessionSchema = new mongoose.Schema({
         ref: 'UserPrompt',
         required: false
     },
+    questionSetId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'CampaignQuestionSet',
+        required: false
+    },
+    questionIndex: {
+        type: Number,
+        default: 0
+    },
     projectId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Project',
@@ -52,6 +61,48 @@ const InterviewSessionSchema = new mongoose.Schema({
     reelAssetId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ReelAsset'
+    },
+    
+    // Testimonial processing fields
+    testimonialGenerated: {
+        type: Boolean,
+        default: false
+    },
+    videoUploadComplete: {
+        type: Boolean,
+        default: false
+    },
+    reelProcessed: {
+        type: Boolean,
+        default: false
+    },
+    testimonialSummary: {
+        type: String,
+        default: ''
+    },
+    reelCaption: {
+        type: String,
+        default: ''
+    },
+    reelDownloadUrl: {
+        type: String,
+        default: ''
+    },
+    highlights: {
+        type: [
+            {
+                quote: String,
+                start: Number,
+                end: Number,
+                confidence: Number
+            }
+        ],
+        default: []
+    },
+    sentiment: {
+        type: String,
+        enum: ['positive', 'neutral', 'negative'],
+        default: 'neutral'
     }
 });
 

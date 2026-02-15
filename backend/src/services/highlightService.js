@@ -3,14 +3,32 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY
-});
+// Initialize Groq client only if API key is available
+let groq = null;
+if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_groq_api_key_here') {
+    groq = new Groq({
+        apiKey: process.env.GROQ_API_KEY
+    });
+} else {
+    console.warn('⚠️ GROQ_API_KEY not configured. Highlight service will use fallback/mock data.');
+}
 
 const HIGHLIGHT_MODEL = process.env.GROQ_HIGHLIGHT_MODEL || 'llama-3.3-70b-versatile';
 
 const extractHighlights = async (transcriptText, segments) => {
     try {
+        if (!groq) {
+            console.warn('⚠️ GROQ API not available, returning mock highlights');
+            return [
+                {
+                    quote: transcriptText.length > 100 ? transcriptText.substring(0, 100) + '...' : transcriptText,
+                    start: 0,
+                    end: Math.min(30, transcriptText.length / 10),
+                    confidence: 0.8
+                }
+            ];
+        }
+
         const prompt = {
             transcript: transcriptText,
             segments: segments.map(seg => ({

@@ -1,6 +1,7 @@
 const VideoAsset = require('../models/VideoAsset');
 const ReelAsset = require('../models/ReelAsset');
 const InterviewSession = require('../models/InterviewSession');
+const Testimonial = require('../models/Testimonial');
 const ffmpegService = require('../services/ffmpegService');
 const highlightService = require('../services/highlightService');
 const transcriptionService = require('../services/transcriptionService');
@@ -120,13 +121,29 @@ exports.uploadRawVideo = async (req, res) => {
         });
 
         session.videoAssetId = videoAsset._id;
+        session.videoUploadComplete = true; // Mark video as uploaded
         await session.save();
+
+        // Create Testimonial entry
+        if (session.projectId) {
+            const testimonial = await Testimonial.create({
+                campaignId: session.projectId,
+                sessionId: session._id,
+                videoUrl: uploadResult.secure_url,
+                userName: req.body.userName || 'Anonymous',
+                status: 'pending'
+            });
+            console.log('✅ Testimonial created:', testimonial._id);
+        }
 
         fs.unlinkSync(req.file.path);
 
+        console.log('✅ Video uploaded for session:', sessionId);
+
         res.status(201).json({
             success: true,
-            data: videoAsset
+            data: videoAsset,
+            message: 'Video uploaded successfully! Ready for processing.'
         });
     } catch (error) {
         console.error(error);

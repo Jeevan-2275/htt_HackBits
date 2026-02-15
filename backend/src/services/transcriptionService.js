@@ -5,9 +5,15 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY
-});
+// Initialize Groq client only if API key is available
+let groq = null;
+if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_groq_api_key_here') {
+    groq = new Groq({
+        apiKey: process.env.GROQ_API_KEY
+    });
+} else {
+    console.warn('⚠️ GROQ_API_KEY not configured. Transcription service will use fallback/mock data.');
+}
 
 // Max chunk duration in seconds (Groq Whisper works best with chunks under 2 min)
 const MAX_CHUNK_DURATION = 120;
@@ -17,6 +23,11 @@ const MIN_SEGMENTS_FOR_LONG_AUDIO = 5;
 
 const transcribeAudio = async (filePath) => {
     try {
+        if (!groq) {
+            console.warn('⚠️ GROQ API not available, returning mock transcription');
+            return '[Mock transcription] This is a placeholder transcription text generated because GROQ_API_KEY is not configured.';
+        }
+
         const stats = fs.statSync(filePath);
         console.log(`Transcribing audio: ${filePath} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
 
@@ -35,6 +46,20 @@ const transcribeAudio = async (filePath) => {
 };
 
 const transcribeChunk = async (filePath) => {
+    if (!groq) {
+        console.warn('⚠️ GROQ API not available, returning mock chunk transcription');
+        return {
+            text: '[Mock chunk transcription] This is a placeholder transcription text generated because GROQ_API_KEY is not configured.',
+            segments: [
+                {
+                    start: 0,
+                    end: 10,
+                    text: '[Mock segment] This is a placeholder transcription segment.'
+                }
+            ]
+        };
+    }
+
     const transcription = await groq.audio.transcriptions.create({
         file: fs.createReadStream(filePath),
         model: 'whisper-large-v3',
