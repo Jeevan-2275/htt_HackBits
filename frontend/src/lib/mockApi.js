@@ -130,7 +130,7 @@ export const getTestimonialById = async (testimonialId) => {
     setTimeout(() => {
       const testimonials = JSON.parse(localStorage.getItem("testimonials") || "[]");
       const campaigns = JSON.parse(localStorage.getItem("campaigns") || "[]");
-      
+
       const testimonial = testimonials.find((t) => t.id === testimonialId);
       if (testimonial) {
         const campaign = campaigns.find((c) => c.id === testimonial.campaignId);
@@ -260,29 +260,46 @@ export const getTestimonialsByCampaign = async (campaignId) => {
 // ============ DUMMY QUESTIONS ============
 
 export const generateAIQuestions = async (payload) => {
-  const response = await fetch('http://localhost:5000/api/campaigns/questions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      companyName: payload.companyName,
-      productName: payload.productName,
-      feedbackType: payload.feedbackType,
-      campaignName: payload.campaignName,
-      productDescription: payload.productDescription,
-      questionCount: payload.questionCount || 10,
-    }),
-  });
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  try {
+    console.log('📤 Requesting AI questions from:', `${apiUrl}/campaigns/questions`);
+    const response = await fetch(`${apiUrl}/campaigns/questions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        companyName: payload.companyName,
+        productName: payload.productName,
+        feedbackType: payload.feedbackType,
+        campaignName: payload.campaignName,
+        productDescription: payload.productDescription,
+        questionCount: payload.questionCount || 10,
+      }),
+    });
 
-  if (!response.ok) {
+    if (!response.ok) {
+      console.error(`❌ API Error: ${response.status}`);
+      const errorData = await response.json();
+      console.error('Error details:', errorData);
+      throw new Error(errorData.error || `Failed to generate questions (${response.status})`);
+    }
+
     const data = await response.json();
-    throw new Error(data.error || 'Failed to generate questions');
+    const isAIGenerated = data.source === 'AI_GENERATED';
+    console.log(`${isAIGenerated ? '🤖 AI' : '⚠️ FALLBACK'} Questions:`, data.data?.questions);
+    
+    return {
+      id: data.data?.id || null,
+      questions: data.data?.questions || DUMMY_QUESTIONS
+    };
+  } catch (error) {
+    console.error('❌ Question generation failed:', error.message);
+    console.log('⚠️ Falling back to dummy questions');
+    // Fallback to dummy questions if API fails
+    return {
+      id: null,
+      questions: DUMMY_QUESTIONS
+    };
   }
-
-  const data = await response.json();
-  return {
-    id: data.data?.id || null,
-    questions: data.data?.questions || DUMMY_QUESTIONS
-  };
 };

@@ -5,8 +5,166 @@ const UserPrompt = require("../models/UserPrompt");
 const CampaignQuestionSet = require("../models/CampaignQuestionSet");
 const aiService = require("../services/aiService");
 const transcriptionService = require("../services/transcriptionService");
+const highlightService = require("../services/highlightService");
 const { uploadToCloudinary } = require("../config/cloudinary");
 const fs = require("fs");
+
+// Process completed interview for testimonial and reel generation
+const processCompletedInterview = async (sessionId) => {
+  try {
+    console.log(`🎬 Processing completed interview: ${sessionId}`);
+    
+    const session = await InterviewSession.findById(sessionId)
+      .populate('questionSetId')
+      .populate('projectId');
+    
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    // Get all conversation turns
+    const conversation = await ConversationTurn.find({ sessionId }).sort({ createdAt: 1 });
+    
+    // Extract user responses only for testimonial content
+    const userResponses = conversation.filter(turn => turn.role === 'user');
+    const fullTranscript = userResponses.map(turn => turn.content).join(' ');
+    
+    if (fullTranscript.length < 50) {
+      console.log('⚠️ Interview too short for testimonial generation');
+      return;
+    }
+
+    // Generate testimonial summary and highlights
+    const testimonialData = await generateTestimonialContent(fullTranscript, session);
+    
+    // Update session with testimonial data
+    session.testimonialGenerated = true;
+    session.testimonialSummary = testimonialData.summary;
+    session.reelCaption = testimonialData.caption;
+    session.highlights = testimonialData.highlights;
+    session.sentiment = testimonialData.sentiment;
+    await session.save();
+    
+    console.log('✅ Testimonial processing completed');
+    
+  } catch (error) {
+    console.error('❌ Error processing completed interview:', error);
+    throw error;
+  }
+};
+
+// Generate testimonial content using AI
+const generateTestimonialContent = async (transcript, session) => {
+  try {
+    const context = {
+      companyName: session.questionSetId?.companyName || session.projectId?.companyName || 'Company',
+      productName: session.questionSetId?.productName || session.projectId?.productName || 'Product',
+      campaignName: session.questionSetId?.campaignName || session.projectId?.name || 'Campaign'
+    };
+
+    // Analyze sentiment
+    const sentiment = await aiService.detectSentiment(transcript);
+    
+    // Generate summary
+    const summary = await generateTestimonialSummary(transcript, context);
+    
+    // Generate Instagram reel caption
+    const caption = await generateReelCaption(transcript, context, sentiment);
+    
+    // Extract highlights for reel clips
+    const highlights = await extractTestimonialHighlights(transcript);
+    
+    return {
+      sentiment,
+      summary,
+      caption,
+      highlights
+    };
+    
+  } catch (error) {
+    console.error('Error generating testimonial content:', error);
+    throw error;
+  }
+};
+
+// Generate testimonial summary
+const generateTestimonialSummary = async (transcript, context) => {
+  try {
+    const prompt = `You are an AI testimonial analyzer. Based on this user feedback, create a concise summary highlighting the key points.
+
+Context:
+- Company: ${context.companyName}
+- Product: ${context.productName}  
+- Campaign: ${context.campaignName}
+
+User Feedback:
+"${transcript}"
+
+Create a 2-3 sentence summary focusing on:
+- Main problem solved
+- Key benefits experienced  
+- Overall sentiment
+
+Return only the summary text, no JSON.`;
+
+    const response = await aiService.generateResponse(prompt);
+    return response.trim();
+    
+  } catch (error) {
+    console.error('Error generating summary:', error);
+    return 'User provided valuable feedback about their experience.';
+  }
+};
+
+// Generate Instagram reel caption
+const generateReelCaption = async (transcript, context, sentiment) => {
+  try {
+    const prompt = `Create an engaging Instagram reel caption based on this testimonial.
+
+Context:
+- Company: ${context.companyName}
+- Product: ${context.productName}
+- Sentiment: ${sentiment}
+
+Testimonial:
+"${transcript}"
+
+Create an Instagram caption that:
+- Starts with a hook
+- Highlights the key benefit/transformation
+- Includes relevant hashtags
+- Encourages engagement
+- Keeps it under 150 characters
+
+Return only the caption text.`;
+
+    const response = await aiService.generateResponse(prompt);
+    return response.trim();
+    
+  } catch (error) {
+    console.error('Error generating caption:', error);
+    return `Amazing feedback about ${context.productName}! 🚀 #testimonial #${context.companyName.toLowerCase()}`;
+  }
+};
+
+// Extract highlights for reel creation
+const extractTestimonialHighlights = async (transcript) => {
+  try {
+    // Create mock segments for highlight extraction
+    const segments = [{
+      start: 0,
+      end: transcript.length / 10, // Rough time estimate
+      text: transcript
+    }];
+    
+    const highlights = await highlightService.extractHighlights(transcript, segments);
+    return highlights || [];
+    
+  } catch (error) {
+    console.error('Error extracting highlights:', error);
+    return [];
+  }
+};
 
 // @desc    Start Interview Session
 // @route   POST /api/session/start
@@ -105,25 +263,48 @@ exports.nextTurn = async (req, res) => {
       return res.status(400).json({ error: "Invalid or inactive session" });
     }
 
-    // 1. Transcribe User Audio
+    // 1. Transcribe User Audio (needed immediately for AI)
     const userText = await transcriptionService.transcribeAudio(req.file.path);
 
-    // 2. Upload User Audio to Cloudinary
-    const userAudioUpload = await uploadToCloudinary(
-      req.file.path,
-      "htt_hackbits/user_audio",
-    );
-
-    // 3. Save User Turn
-    await ConversationTurn.create({
+    // 2. Save User Turn immediately with text (upload audio in background)
+    const userTurn = await ConversationTurn.create({
       sessionId,
       role: "user",
       content: userText,
-      audioUrl: userAudioUpload.secure_url,
+      audioUrl: null, // Will be updated in background
     });
 
-    // Cleanup User File
-    fs.unlinkSync(req.file.path);
+    // 3. Upload User Audio to Cloudinary in background
+    const userAudioPath = req.file.path;
+    setImmediate(async () => {
+      try {
+        const userAudioUpload = await uploadToCloudinary(
+          userAudioPath,
+          "htt_hackbits/user_audio",
+        );
+        
+        // Update conversation turn with audio URL
+        await ConversationTurn.findByIdAndUpdate(
+          userTurn._id,
+          { audioUrl: userAudioUpload.secure_url }
+        );
+        
+        // Cleanup User File
+        fs.unlinkSync(userAudioPath);
+        
+        console.log('✅ User audio uploaded for session:', sessionId);
+      } catch (uploadError) {
+        console.error('❌ User audio upload error:', uploadError);
+        // Try to cleanup file even if upload fails
+        try {
+          if (fs.existsSync(userAudioPath)) {
+            fs.unlinkSync(userAudioPath);
+          }
+        } catch (cleanupError) {
+          console.error('File cleanup error:', cleanupError);
+        }
+      }
+    });
 
     let nextQText = "";
 
@@ -145,30 +326,58 @@ exports.nextTurn = async (req, res) => {
           campaignName: session.questionSetId.campaignName,
           interviewGoal: session.promptId?.interviewGoal,
         };
+        
+        // Generate closing text immediately
         const closingText = await aiService.generateClosingStatement(context);
-        const closingAudioPath = await aiService.generateSpeech(closingText);
-        const closingAudioUpload = await uploadToCloudinary(
-          closingAudioPath,
-          "htt_hackbits/audio_responses",
-        );
 
+        // Save conversation turn immediately without audio URL
         await ConversationTurn.create({
           sessionId,
           role: "ai",
           content: closingText,
-          audioUrl: closingAudioUpload.secure_url,
+          audioUrl: null, // Will be updated in background if needed
         });
 
-        fs.unlinkSync(closingAudioPath);
+        // Process audio upload and testimonial generation in background (don't await)
+        setImmediate(async () => {
+          try {
+            console.log('🎬 Starting background processing for session:', sessionId);
+            
+            // Generate and upload audio in background
+            const closingAudioPath = await aiService.generateSpeech(closingText);
+            const closingAudioUpload = await uploadToCloudinary(
+              closingAudioPath,
+              "htt_hackbits/audio_responses",
+            );
+            fs.unlinkSync(closingAudioPath);
+            
+            // Update conversation turn with audio URL
+            await ConversationTurn.findOneAndUpdate(
+              { sessionId, role: "ai", content: closingText },
+              { audioUrl: closingAudioUpload.secure_url }
+            );
+            
+            console.log('✅ Audio uploaded to Cloudinary');
+            
+            // Process completed interview for testimonial generation
+            await processCompletedInterview(sessionId);
+            console.log('✅ Testimonial processing completed');
+            
+          } catch (procError) {
+            console.error('❌ Background processing error:', procError);
+          }
+        });
 
+        // Return immediately without waiting for uploads
         return res.json({
           success: true,
           transcript: userText,
           reply: {
             text: closingText,
-            audio: closingAudioUpload.secure_url,
+            audio: null, // Audio will be available later
           },
           completed: true,
+          message: "Interview completed! Processing your testimonial in background..."
         });
       }
 
@@ -200,30 +409,43 @@ exports.nextTurn = async (req, res) => {
       );
     }
 
-    // 6. Generate AI Audio
-    const aiAudioPath = await aiService.generateSpeech(nextQText);
-    const aiAudioUpload = await uploadToCloudinary(
-      aiAudioPath,
-      "htt_hackbits/audio_responses",
-    );
-
-    // 7. Save AI Turn
-    await ConversationTurn.create({
+    // 6. Save AI Turn immediately with text (without audio URL for now)
+    const conversationTurn = await ConversationTurn.create({
       sessionId,
       role: "ai",
       content: nextQText,
-      audioUrl: aiAudioUpload.secure_url,
+      audioUrl: null, // Will be updated in background
     });
 
-    // Cleanup AI Audio File
-    fs.unlinkSync(aiAudioPath);
+    // 7. Generate and upload audio in background (don't block response)
+    setImmediate(async () => {
+      try {
+        const aiAudioPath = await aiService.generateSpeech(nextQText);
+        const aiAudioUpload = await uploadToCloudinary(
+          aiAudioPath,
+          "htt_hackbits/audio_responses",
+        );
+        fs.unlinkSync(aiAudioPath);
+        
+        // Update conversation turn with audio URL
+        await ConversationTurn.findByIdAndUpdate(
+          conversationTurn._id,
+          { audioUrl: aiAudioUpload.secure_url }
+        );
+        
+        console.log('✅ AI audio uploaded for session:', sessionId);
+      } catch (audioError) {
+        console.error('❌ Background audio upload error:', audioError);
+      }
+    });
 
+    // 8. Return immediately to user
     res.json({
       success: true,
       transcript: userText,
       reply: {
         text: nextQText,
-        audio: aiAudioUpload.secure_url,
+        audio: null, // Audio will be available later
       },
     });
   } catch (error) {

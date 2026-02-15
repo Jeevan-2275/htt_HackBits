@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { getCampaignById } from "@/lib/mockApi";
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import campaignService from '@/lib/campaignService';
 
 export default function RecordPage() {
   const params = useParams();
   const router = useRouter();
-  const campaignId = params.campaignId;
+
+  // State for campaign ID
+  const [campaignId, setCampaignId] = useState(null);
+  const [paramsReady, setParamsReady] = useState(false);
 
   // Core state
   const [campaign, setCampaign] = useState(null);
@@ -76,25 +79,47 @@ export default function RecordPage() {
   const speechCooldownRef = useRef(0);
   const soundPersistenceRef = useRef(0);
 
+  // Handle params availability
+  useEffect(() => {
+    if (params && params.campaignId) {
+      console.log('✅ Campaign ID from params:', params.campaignId);
+      setCampaignId(params.campaignId);
+      setParamsReady(true);
+    } else {
+      console.warn('⚠️ Params not ready yet:', params);
+    }
+  }, [params]);
+
   // Load campaign
   useEffect(() => {
     const loadCampaign = async () => {
+      if (!paramsReady || !campaignId) {
+        console.log('⏳ Waiting for campaign ID... paramsReady:', paramsReady, 'campaignId:', campaignId);
+        return;
+      }
+
       try {
-        const data = await getCampaignById(campaignId);
+        console.log('🔄 Loading campaign:', campaignId);
+        // Use public method (no auth required)
+        const data = await campaignService.getPublicCampaignById(campaignId);
         if (!data) {
           setError("Campaign not found");
         } else {
+          console.log('✅ Campaign loaded:', data);
           setCampaign(data);
         }
       } catch (err) {
-        setError("Failed to load campaign");
+        setError(err.message || 'Failed to load campaign');
       } finally {
         setLoading(false);
       }
     };
-    loadCampaign();
 
-    // Load available voices from backend
+    loadCampaign();
+  }, [campaignId, paramsReady]);
+
+  // Load available voices from backend
+  useEffect(() => {
     const fetchVoices = async () => {
       try {
         console.log("[TTS] Fetching available voices from backend...");
@@ -118,7 +143,7 @@ export default function RecordPage() {
       }
     };
     fetchVoices();
-  }, [campaignId]);
+  }, []);
 
   // Recording timer
   useEffect(() => {
@@ -565,10 +590,10 @@ export default function RecordPage() {
     } else if (
       step === "question" &&
       !isUsingBackendQuestions &&
-      campaign?.questions[currentQuestionIndex]
+      campaign?.questions?.[currentQuestionIndex]
     ) {
       // Auto-generate audio for local questions
-      const questionText = campaign.questions[currentQuestionIndex];
+      const questionText = campaign?.questions?.[currentQuestionIndex];
       if (questionText && !currentQuestionAudio) {
         console.log(
           "[TTS] Auto-generating audio for local question:",
@@ -577,381 +602,537 @@ export default function RecordPage() {
         fetchTtsAudio(questionText);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, isUsingBackendQuestions, currentQuestionIndex]);
 
-  // Auto-start recording when question finishes playing
-  useEffect(() => {
-    if (step === "question" && !isRecording && !isFetchingQuestion) {
-      console.log(
-        "%c[FLOW] 🎬 AUTO-STARTING RECORDING (Ready for next input)",
-        "background: #9C27B0; color: white; padding: 2px 6px; border-radius: 3px;",
-      );
-      // Small delay to ensure any previous playback/TTS is winding down
-      const timer = setTimeout(() => {
-        if (!isRecording) {
-          startRecording();
-        }
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [step, isRecording, isFetchingQuestion]);
-
-  // Reset silence timer and speaking state when AI finishes speaking
-  useEffect(() => {
-    if (!aiSpeaking && isRecording) {
-      lastSoundTimeRef.current = Date.now();
-      hasStartedSpeakingRef.current = false;
-    }
-  }, [aiSpeaking, isRecording]);
-
-  // Auto-stop recording after 1 second of silence (reduced from 3 seconds)
-  const silenceTimerRef = useRef(null);
-  const lastSoundTimeRef = useRef(Date.now());
-
-  useEffect(() => {
-    if (!isRecording || !mediaRecorderRef.current) return;
-
-    // Monitor for silence using audio context
-    const monitorSilence = setInterval(() => {
-      if (!aiSpeakingRef.current && lastSoundTimeRef.current) {
-        const silenceTime = Date.now() - lastSoundTimeRef.current;
-
-        // Thresholds: 2 seconds after speaking, 8 seconds of absolute silence to auto-advance
-        const silenceThreshold = hasStartedSpeakingRef.current ? 2000 : 8000;
-
-        if (silenceTime > silenceThreshold) {
-          console.log("client end speekin ,,,,,,");
-          stopRecording();
-          clearInterval(monitorSilence);
-        }
+// Auto-start recording when question finishes playing
+useEffect(() => {
+  if (step === "question" && !isRecording && !isFetchingQuestion) {
+    console.log(
+      "%c[FLOW] 🎬 AUTO-STARTING RECORDING (Ready for next input)",
+      "background: #9C27B0; color: white; padding: 2px 6px; border-radius: 3px;",
+    );
+    // Small delay to ensure any previous playback/TTS is winding down
+    const timer = setTimeout(() => {
+      if (!isRecording) {
+        startRecording();
       }
-    }, 100);
+    }, 500);
+    return () => clearTimeout(timer);
+  }
+}, [step, isRecording, isFetchingQuestion]);
 
-    return () => clearInterval(monitorSilence);
-  }, [isRecording]);
+// Reset silence timer and speaking state when AI finishes speaking
+useEffect(() => {
+  if (!aiSpeaking && isRecording) {
+    lastSoundTimeRef.current = Date.now();
+    hasStartedSpeakingRef.current = false;
+  }
+}, [aiSpeaking, isRecording]);
 
-  // Track sound activity and log customer speaking
-  useEffect(() => {
-    if (!stream || !isRecording) return;
+// Auto-stop recording after 1 second of silence (reduced from 3 seconds)
+const silenceTimerRef = useRef(null);
+const lastSoundTimeRef = useRef(Date.now());
 
-    try {
-      const audioContext = new (
-        window.AudioContext || window.webkitAudioContext
-      )();
-      const analyser = audioContext.createAnalyser();
-      const source = audioContext.createMediaStreamSource(stream);
-      const filter = audioContext.createBiquadFilter();
-      filter.type = "highpass";
-      filter.frequency.value = 150; // Cut off low frequency hum (fans, AC)
+useEffect(() => {
+  if (!isRecording || !mediaRecorderRef.current) return;
 
-      source.connect(filter);
-      filter.connect(analyser);
+  // Monitor for silence using audio context
+  const monitorSilence = setInterval(() => {
+    if (!aiSpeakingRef.current && lastSoundTimeRef.current) {
+      const silenceTime = Date.now() - lastSoundTimeRef.current;
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      let noiseFloor = 10;
+      // Thresholds: 2 seconds after speaking, 8 seconds of absolute silence to auto-advance
+      const silenceThreshold = hasStartedSpeakingRef.current ? 2000 : 8000;
 
-      const detectSound = () => {
-        if (!isRecording) return;
-
-        const now = Date.now();
-        if (aiSpeakingRef.current || now < speechCooldownRef.current) {
-          lastSoundTimeRef.current = now;
-          soundPersistenceRef.current = 0;
-          requestAnimationFrame(detectSound);
-          return;
-        }
-
-        analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-
-        // Dynamic threshold: Only trigger if significantly above noise floor
-        if (average > noiseFloor + 12) {
-          // Require sound to persist for 200ms before counting as speaking
-          if (soundPersistenceRef.current === 0) {
-            soundPersistenceRef.current = now;
-          } else if (now - soundPersistenceRef.current > 200) {
-            if (!hasStartedSpeakingRef.current) {
-              console.log("Customer start speaking ,,,,,");
-              hasStartedSpeakingRef.current = true;
-            }
-            lastSoundTimeRef.current = now;
-          }
-        } else {
-          soundPersistenceRef.current = 0;
-          // Gradually update noise floor
-          noiseFloor = noiseFloor * 0.98 + average * 0.02;
-        }
-
-        requestAnimationFrame(detectSound);
-      };
-
-      detectSound();
-
-      return () => {
-        source.disconnect();
-        audioContext.close();
-      };
-    } catch (err) {
-      console.warn("[AUDIO] Could not setup silence detection:", err);
+      if (silenceTime > silenceThreshold) {
+        console.log("client end speekin ,,,,,,");
+        stopRecording();
+        clearInterval(monitorSilence);
+      }
     }
-  }, [stream, isRecording]);
+  }, 100);
 
-  // Format time as MM:SS
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
+  return () => clearInterval(monitorSilence);
+}, [isRecording]);
 
-  // Start camera and recording
-  const startRecording = async () => {
-    try {
+// Track sound activity and log customer speaking
+useEffect(() => {
+  if (!stream || !isRecording) return;
+
+  try {
+    const audioContext = new (
+      window.AudioContext || window.webkitAudioContext
+    )();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    const filter = audioContext.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 150; // Cut off low frequency hum (fans, AC)
+
+    source.connect(filter);
+    filter.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    let noiseFloor = 10;
+
+    const detectSound = () => {
+      if (!isRecording) return;
+
+      const now = Date.now();
+      if (aiSpeakingRef.current || now < speechCooldownRef.current) {
+        lastSoundTimeRef.current = now;
+        soundPersistenceRef.current = 0;
+        requestAnimationFrame(detectSound);
+        return;
+      }
+
+      analyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+
+      // Dynamic threshold: Only trigger if significantly above noise floor
+      if (average > noiseFloor + 12) {
+        // Require sound to persist for 200ms before counting as speaking
+        if (soundPersistenceRef.current === 0) {
+          soundPersistenceRef.current = now;
+        } else if (now - soundPersistenceRef.current > 200) {
+          if (!hasStartedSpeakingRef.current) {
+            console.log("Customer start speaking ,,,,,");
+            hasStartedSpeakingRef.current = true;
+          }
+          lastSoundTimeRef.current = now;
+        }
+      } else {
+        soundPersistenceRef.current = 0;
+        // Gradually update noise floor
+        noiseFloor = noiseFloor * 0.98 + average * 0.02;
+      }
+
+      requestAnimationFrame(detectSound);
+    };
+
+    detectSound();
+
+    return () => {
+      source.disconnect();
+      audioContext.close();
+    };
+  } catch (err) {
+    console.warn("[AUDIO] Could not setup silence detection:", err);
+  }
+}, [stream, isRecording]);
+
+// Format time as MM:SS
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+};
+
+// Start camera and recording
+const startRecording = async () => {
+  try {
+    console.log(
+      "%c[RECORDING] ▶️ STARTING RECORDING SESSION",
+      "background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px;",
+    );
+    setError("");
+    let mediaStream = stream;
+    if (!mediaStream) {
       console.log(
-        "%c[RECORDING] ▶️ STARTING RECORDING SESSION",
+        "%c[RECORDING] 📷 Requesting camera/microphone access",
+        "background: #2196F3; color: white; padding: 2px 6px; border-radius: 3px;",
+      );
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      console.log(
+        "%c[RECORDING] ✓ Camera/Microphone access granted",
         "background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px;",
       );
-      setError("");
-      let mediaStream = stream;
-      if (!mediaStream) {
+    }
+
+    setStream(mediaStream);
+
+    // Use setTimeout to ensure ref is ready
+    setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
         console.log(
-          "%c[RECORDING] 📷 Requesting camera/microphone access",
+          "%c[RECORDING] 📹 Video stream assigned to element",
           "background: #2196F3; color: white; padding: 2px 6px; border-radius: 3px;",
         );
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "user",
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
-        console.log(
-          "%c[RECORDING] ✓ Camera/Microphone access granted",
-          "background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px;",
-        );
       }
+    }, 0);
 
-      setStream(mediaStream);
+    const audioStream = new MediaStream(mediaStream.getAudioTracks());
+    const mediaRecorder = new MediaRecorder(audioStream);
+    mediaRecorderRef.current = mediaRecorder;
+    const chunks = [];
 
-      // Use setTimeout to ensure ref is ready
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-          console.log(
-            "%c[RECORDING] 📹 Video stream assigned to element",
-            "background: #2196F3; color: white; padding: 2px 6px; border-radius: 3px;",
-          );
-        }
-      }, 0);
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        chunks.push(event.data);
+      }
+    };
 
-      const audioStream = new MediaStream(mediaStream.getAudioTracks());
-      const mediaRecorder = new MediaRecorder(audioStream);
-      mediaRecorderRef.current = mediaRecorder;
-      const chunks = [];
+    mediaRecorder.onstop = async () => {
+      console.log(
+        "%c[RECORDING] 🛑 MEDIA RECORDER STOPPED - Processing audio",
+        "background: #FF9800; color: white; padding: 2px 6px; border-radius: 3px;",
+      );
+      const blob = new Blob(chunks, { type: "audio/webm" });
+      setRecordedChunks([blob]);
+      console.log(
+        "%c[RECORDING] 📦 Audio blob created",
+        "background: #FF9800; color: white; padding: 2px 6px; border-radius: 3px;",
+      );
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
+      if (isUsingBackendQuestions && sessionId) {
         console.log(
-          "%c[RECORDING] 🛑 MEDIA RECORDER STOPPED - Processing audio",
-          "background: #FF9800; color: white; padding: 2px 6px; border-radius: 3px;",
+          "%c[FLOW] 📨 FETCHING NEXT QUESTION FROM BACKEND",
+          "background: #9C27B0; color: white; padding: 2px 6px; border-radius: 3px;",
         );
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        setRecordedChunks([blob]);
-        console.log(
-          "%c[RECORDING] 📦 Audio blob created",
-          "background: #FF9800; color: white; padding: 2px 6px; border-radius: 3px;",
-        );
+        fetchNextQuestion(blob);
+      } else if (!isUsingBackendQuestions && campaignRef.current) {
+        // Local questions flow
+        const currentIdx = currentQuestionIndexRef.current;
+        const questions = campaignRef.current.questions;
 
-        if (isUsingBackendQuestions && sessionId) {
+        if (currentIdx < questions.length - 1) {
           console.log(
-            "%c[FLOW] 📨 FETCHING NEXT QUESTION FROM BACKEND",
+            "%c[FLOW] ⏭️ AUTO-ADVANCING TO NEXT QUESTION",
             "background: #9C27B0; color: white; padding: 2px 6px; border-radius: 3px;",
+            `(${currentIdx + 1}/${questions.length})`,
           );
-          fetchNextQuestion(blob);
-        } else if (!isUsingBackendQuestions && campaignRef.current) {
-          // Local questions flow
-          const currentIdx = currentQuestionIndexRef.current;
-          const questions = campaignRef.current.questions;
-
-          if (currentIdx < questions.length - 1) {
-            console.log(
-              "%c[FLOW] ⏭️ AUTO-ADVANCING TO NEXT QUESTION",
-              "background: #9C27B0; color: white; padding: 2px 6px; border-radius: 3px;",
-              `(${currentIdx + 1}/${questions.length})`,
-            );
-            setTimeout(() => {
-              setCurrentQuestionIndex((prev) => prev + 1);
-              setCurrentQuestionAudio("");
-              setRecordedChunks([]);
-              setStep("question");
-            }, 300);
-          } else {
-            console.log(
-              "%c[FLOW] ✅ ALL QUESTIONS COMPLETED (Local)",
-              "background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px;",
-            );
-            await stopSessionRecordingAndUpload();
-            setStep("completed");
-          }
+          setTimeout(() => {
+            setCurrentQuestionIndex((prev) => prev + 1);
+            setCurrentQuestionAudio("");
+            setRecordedChunks([]);
+            setStep("question");
+          }, 300);
+        } else {
+          console.log(
+            "%c[FLOW] ✅ ALL QUESTIONS COMPLETED (Local)",
+            "background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px;",
+          );
+          await stopSessionRecordingAndUpload();
+          setStep("completed");
         }
-      };
+      }
+    };
 
-      startSessionRecording(mediaStream);
-      mediaRecorder.start();
-      setIsRecording(true);
-      setRecordingTime(0);
-      console.log(
-        "%c[RECORDING] 🔴 MediaRecorder started - Listening for customer",
-        "background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px;",
-      );
-      lastSoundTimeRef.current = Date.now();
-      setStep("recording");
-    } catch (err) {
-      setError(`Camera/Microphone Error: ${err.message}`);
-      console.error(
-        "%c[RECORDING] ❌ ERROR:",
-        "background: #F44336; color: white; padding: 2px 6px; border-radius: 3px;",
-        err,
-      );
-    }
-  };
-
-  // Stop recording
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      console.log(
-        "%c[RECORDING] 🛑 STOPPING RECORDING",
-        "background: #FF5722; color: white; padding: 2px 6px; border-radius: 3px;",
-      );
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setRecordingTime(0);
-
-      // Keep stream active for the A-Z full session recording
-    }
-  };
-
-  // Cancel recording
-  const cancelRecording = () => {
+    startSessionRecording(mediaStream);
+    mediaRecorder.start();
+    setIsRecording(true);
+    setRecordingTime(0);
     console.log(
-      "%c[USER] ❌ USER CANCELLED INTERVIEW",
-      "background: #F44336; color: white; padding: 2px 6px; border-radius: 3px;",
+      "%c[RECORDING] 🔴 MediaRecorder started - Listening for customer",
+      "background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px;",
     );
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-    }
+    lastSoundTimeRef.current = Date.now();
+    setStep("recording");
+  } catch (err) {
+    setError(`Camera/Microphone Error: ${err.message}`);
+    console.error(
+      "%c[RECORDING] ❌ ERROR:",
+      "background: #F44336; color: white; padding: 2px 6px; border-radius: 3px;",
+      err,
+    );
+  }
+};
+
+// Stop recording
+const stopRecording = () => {
+  if (mediaRecorderRef.current && isRecording) {
+    console.log(
+      "%c[RECORDING] 🛑 STOPPING RECORDING",
+      "background: #FF5722; color: white; padding: 2px 6px; border-radius: 3px;",
+    );
+    mediaRecorderRef.current.stop();
     setIsRecording(false);
     setRecordingTime(0);
-    setStep("question");
-  };
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#050816] flex items-center justify-center relative overflow-hidden">
-        {/* Aurora Background */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-20 left-10 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute -bottom-40 right-20 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-2000"></div>
-        </div>
-
-        <div className="relative z-10 text-center">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center animate-pulse">
-            <svg
-              className="w-10 h-10 text-blue-400 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-          </div>
-          <p className="text-white/70 text-lg">Loading interview...</p>
-        </div>
-      </div>
-    );
+    // Keep stream active for the A-Z full session recording
   }
+};
 
-  // Error state
-  if (error && !campaign) {
-    return (
-      <div className="min-h-screen bg-[#050816] flex items-center justify-center px-4 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-20 left-10 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute -bottom-40 right-20 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-2000"></div>
-        </div>
-
-        <div className="relative z-10 max-w-md text-center">
-          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center border border-red-500/30">
-            <svg
-              className="w-12 h-12 text-red-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Campaign Not Found
-          </h1>
-          <p className="text-white/60">{error}</p>
-        </div>
-      </div>
-    );
+// Cancel recording
+const cancelRecording = () => {
+  console.log(
+    "%c[USER] ❌ USER CANCELLED INTERVIEW",
+    "background: #F44336; color: white; padding: 2px 6px; border-radius: 3px;",
+  );
+  if (stream) {
+    stream.getTracks().forEach((track) => track.stop());
+    setStream(null);
   }
+  setIsRecording(false);
+  setRecordingTime(0);
+  setStep("question");
+};
 
-  if (!campaign) return null;
-
+// Loading state
+if (loading) {
   return (
-    <div className="min-h-screen bg-[#050816] relative overflow-hidden">
-      {/* Aurora Gradient Background */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-2000"></div>
-        <div className="absolute -bottom-40 left-1/2 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse delay-4000"></div>
+    <div className="min-h-screen bg-[#050816] flex items-center justify-center relative overflow-hidden">
+      {/* Aurora Background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+        <div className="absolute -bottom-40 right-20 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-2000"></div>
       </div>
 
-      {/* Gradient Overlay */}
-      <div className="fixed inset-0 bg-gradient-to-br from-blue-900/10 via-transparent to-purple-900/10 pointer-events-none"></div>
+      <div className="relative z-10 text-center">
+        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center animate-pulse">
+          <svg
+            className="w-10 h-10 text-blue-400 animate-spin"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            ></circle>
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+        </div>
+        <p className="text-white/70 text-lg">Loading interview...</p>
+      </div>
+    </div>
+  );
+}
 
-      {/* WELCOME STEP */}
-      {step === "welcome" && (
-        <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full animate-fadeIn">
-            <div className="glass rounded-3xl p-12 text-center shadow-2xl shadow-purple-500/20">
-              {/* Avatar */}
-              <div className="relative w-32 h-32 mx-auto mb-8">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full blur-2xl opacity-40 animate-pulse"></div>
-                <div className="relative w-32 h-32 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl shadow-purple-500/50 border border-white/10">
+// Error state
+if (error && !campaign) {
+  return (
+    <div className="min-h-screen bg-[#050816] flex items-center justify-center px-4 relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+        <div className="absolute -bottom-40 right-20 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-2000"></div>
+      </div>
+
+      <div className="relative z-10 max-w-md text-center">
+        <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center border border-red-500/30">
+          <svg
+            className="w-12 h-12 text-red-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-2">
+          Campaign Not Found
+        </h1>
+        <p className="text-white/60">{error}</p>
+      </div>
+    </div>
+  );
+}
+
+if (!campaign) return null;
+
+return (
+  <div className="min-h-screen bg-[#050816] relative overflow-hidden">
+    {/* Aurora Gradient Background */}
+    <div className="fixed inset-0 pointer-events-none">
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+      <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-2000"></div>
+      <div className="absolute -bottom-40 left-1/2 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse delay-4000"></div>
+    </div>
+
+    {/* Gradient Overlay */}
+    <div className="fixed inset-0 bg-gradient-to-br from-blue-900/10 via-transparent to-purple-900/10 pointer-events-none"></div>
+
+    {/* WELCOME STEP */}
+    {step === "welcome" && (
+      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full animate-fadeIn">
+          <div className="glass rounded-3xl p-12 text-center shadow-2xl shadow-purple-500/20">
+            {/* Avatar */}
+            <div className="relative w-32 h-32 mx-auto mb-8">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full blur-2xl opacity-40 animate-pulse"></div>
+              <div className="relative w-32 h-32 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl shadow-purple-500/50 border border-white/10">
+                <svg
+                  className="w-16 h-16 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-3">
+              Hey bud! 👋
+            </h1>
+            <p className="text-white/70 text-xl mb-8 max-w-xl mx-auto">
+              I'm your friend, and I'm here to help you share your thoughts on{" "}
+              {campaign.name}. Let's have a quick chat!
+            </p>
+
+            {/* Campaign Details */}
+            <div className="glass-sm border border-white/10 rounded-2xl p-6 mb-8 text-left bg-white/5">
+              <p className="text-white/60 text-sm mb-2">Recording for</p>
+              <h2 className="text-2xl font-bold text-white mb-4">
+                {campaign.name}
+              </h2>
+              <div className="flex gap-4 text-white/70 text-sm">
+                <span>📝 {campaign.questions.length} questions</span>
+                <span>
+                  ⏱️ ~{Math.ceil((campaign.questions.length * 60) / 2)}{" "}
+                  seconds
+                </span>
+              </div>
+            </div>
+
+            {/* Name Input */}
+            <div className="mb-8">
+              <label className="block text-white/70 text-sm font-medium mb-3">
+                What's your name?
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                onKeyPress={(e) =>
+                  e.key === "Enter" &&
+                  customerName.trim() &&
+                  setStep("question")
+                }
+                placeholder="John Smith"
+                autoFocus
+                className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-white/20 transition duration-300 text-lg"
+              />
+            </div>
+
+            {/* Voice Selector */}
+            <div className="mb-8">
+              <label className="block text-white/70 text-sm font-medium mb-3">
+                Select AI Voice
+              </label>
+              <select
+                value={selectedVoice}
+                onChange={(e) => {
+                  setSelectedVoice(e.target.value);
+                  console.log("[TTS] Voice selected:", e.target.value);
+                }}
+                className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-white/20 transition duration-300 text-lg"
+                style={{
+                  colorScheme: "light",
+                }}
+              >
+                <option
+                  style={{ color: "black", backgroundColor: "white" }}
+                  value=""
+                >
+                  -- Select a voice --
+                </option>
+                {Object.entries(availableVoices).map(([language, voices]) => (
+                  <optgroup
+                    key={language}
+                    label={language}
+                    style={{ color: "black" }}
+                  >
+                    {voices.map((voice) => (
+                      <option
+                        key={voice}
+                        value={voice}
+                        style={{ color: "black", backgroundColor: "white" }}
+                      >
+                        {voice.replace(/-/g, " ")}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <p className="text-white/50 text-xs mt-2">
+                💡 Unlimited AI voices powered by Microsoft Edge TTS (FREE)
+              </p>
+            </div>
+
+            <button
+              onClick={() => customerName.trim() && setStep("question")}
+              disabled={!customerName.trim()}
+              className="w-full px-8 py-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 cursor-pointer"
+            >
+              Let's Talk!
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* QUESTION STEP */}
+    {step === "question" && (
+      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full animate-fadeIn">
+          <div className="glass rounded-3xl p-12 shadow-2xl shadow-purple-500/20">
+            {/* Progress Bar */}
+            <div className="mb-12">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-white/70 text-sm">
+                  Question {currentQuestionIndex + 1} of{" "}
+                  {campaign.questions.length}
+                </span>
+                <span className="text-white/70 text-sm">
+                  {Math.round(
+                    ((currentQuestionIndex + 1) / campaign.questions.length) *
+                    100,
+                  )}
+                  %
+                </span>
+              </div>
+              <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 transition-all duration-300"
+                  style={{
+                    width: `${((currentQuestionIndex + 1) / campaign.questions.length) * 100}%`,
+                  }}
+                ></div>
+              </div>
+            </div>
+
+            {/* AI Avatar */}
+            <div className="flex justify-center mb-10">
+              <div className="relative">
+                <div
+                  className={`absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full blur-2xl opacity-40 ${aiSpeaking ? "animate-pulse" : ""}`}
+                ></div>
+                <div
+                  className={`relative w-28 h-28 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl shadow-purple-500/50 border border-white/10 ${aiSpeaking ? "animate-pulse" : ""}`}
+                >
                   <svg
-                    className="w-16 h-16 text-white"
+                    className="w-14 h-14 text-white"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -960,153 +1141,139 @@ export default function RecordPage() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={1.5}
-                      d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
                 </div>
               </div>
+            </div>
 
-              <h1 className="text-4xl md:text-5xl font-bold text-white mb-3">
-                Hey bud! 👋
-              </h1>
-              <p className="text-white/70 text-xl mb-8 max-w-xl mx-auto">
-                I'm your friend, and I'm here to help you share your thoughts on{" "}
-                {campaign.name}. Let's have a quick chat!
-              </p>
-
-              {/* Campaign Details */}
-              <div className="glass-sm border border-white/10 rounded-2xl p-6 mb-8 text-left bg-white/5">
-                <p className="text-white/60 text-sm mb-2">Recording for</p>
-                <h2 className="text-2xl font-bold text-white mb-4">
-                  {campaign.name}
-                </h2>
-                <div className="flex gap-4 text-white/70 text-sm">
-                  <span>📝 {campaign.questions.length} questions</span>
-                  <span>
-                    ⏱️ ~{Math.ceil((campaign.questions.length * 60) / 2)}{" "}
-                    seconds
-                  </span>
-                </div>
-              </div>
-
-              {/* Name Input */}
-              <div className="mb-8">
-                <label className="block text-white/70 text-sm font-medium mb-3">
-                  What's your name?
-                </label>
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  onKeyPress={(e) =>
-                    e.key === "Enter" &&
-                    customerName.trim() &&
-                    setStep("question")
-                  }
-                  placeholder="John Smith"
-                  autoFocus
-                  className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-white/20 transition duration-300 text-lg"
-                />
-              </div>
-
-              {/* Voice Selector */}
-              <div className="mb-8">
-                <label className="block text-white/70 text-sm font-medium mb-3">
-                  Select AI Voice
-                </label>
-                <select
-                  value={selectedVoice}
-                  onChange={(e) => {
-                    setSelectedVoice(e.target.value);
-                    console.log("[TTS] Voice selected:", e.target.value);
-                  }}
-                  className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-white/20 transition duration-300 text-lg"
-                  style={{
-                    colorScheme: "light",
-                  }}
+            {/* Question Text - Always Display */}
+            <div className="text-center mb-10">
+              <div className="mb-3">
+                <span
+                  className={`inline-block px-4 py-2 rounded-full text-sm font-medium ${aiSpeaking ? "bg-green-500/20 text-green-300 border border-green-500/50" : "bg-blue-500/20 text-blue-300 border border-blue-500/50"}`}
                 >
-                  <option
-                    style={{ color: "black", backgroundColor: "white" }}
-                    value=""
-                  >
-                    -- Select a voice --
-                  </option>
-                  {Object.entries(availableVoices).map(([language, voices]) => (
-                    <optgroup
-                      key={language}
-                      label={language}
-                      style={{ color: "black" }}
-                    >
-                      {voices.map((voice) => (
-                        <option
-                          key={voice}
-                          value={voice}
-                          style={{ color: "black", backgroundColor: "white" }}
-                        >
-                          {voice.replace(/-/g, " ")}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-                <p className="text-white/50 text-xs mt-2">
-                  💡 Unlimited AI voices powered by Microsoft Edge TTS (FREE)
+                  {aiSpeaking ? "🎙️ AI is speaking" : "👂 Ready to listen"}
+                </span>
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold text-white leading-relaxed">
+                {isUsingBackendQuestions
+                  ? currentQuestionText || "Preparing your question..."
+                  : campaign.questions[currentQuestionIndex]}
+              </h2>
+            </div>
+
+            {ttsLoading && (
+              <div className="glass-sm bg-white/5 border border-white/10 rounded-xl p-4 mb-6 text-center">
+                <p className="text-white/70 text-sm">
+                  🎙️ AI is generating voice...
                 </p>
               </div>
+            )}
 
-              <button
-                onClick={() => customerName.trim() && setStep("question")}
-                disabled={!customerName.trim()}
-                className="w-full px-8 py-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 cursor-pointer"
-              >
-                Let's Talk!
-              </button>
+            {/* Tip */}
+            <div className="glass-sm bg-blue-500/10 border border-blue-500/30 rounded-xl p-5 mb-8 text-center">
+              <p className="text-blue-300 text-sm">
+                💡 Speak naturally for 30-90 seconds. Recording will start
+                automatically!
+              </p>
+            </div>
+
+            {error && (
+              <div className="glass-sm bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-8">
+                <p className="text-red-300 text-sm">{error}</p>
+              </div>
+            )}
+
+            <div className="w-full px-8 py-4 text-center">
+              <p className="text-white/70 text-base font-medium">
+                ⏱️ Recording will start automatically after the question is
+                read
+              </p>
             </div>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
-      {/* QUESTION STEP */}
-      {step === "question" && (
-        <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full animate-fadeIn">
-            <div className="glass rounded-3xl p-12 shadow-2xl shadow-purple-500/20">
-              {/* Progress Bar */}
-              <div className="mb-12">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-white/70 text-sm">
-                    Question {currentQuestionIndex + 1} of{" "}
-                    {campaign.questions.length}
-                  </span>
-                  <span className="text-white/70 text-sm">
-                    {Math.round(
-                      ((currentQuestionIndex + 1) / campaign.questions.length) *
-                        100,
-                    )}
-                    %
-                  </span>
-                </div>
-                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 transition-all duration-300"
-                    style={{
-                      width: `${((currentQuestionIndex + 1) / campaign.questions.length) * 100}%`,
-                    }}
-                  ></div>
-                </div>
-              </div>
+    {/* RECORDING STEP - Interview Room */}
+    {step === "recording" && (
+      <div className="relative z-10 h-screen flex flex-col animate-fadeIn">
+        {/* Top Bar - Question & Timer */}
+        <div className="glass-sm border-b border-white/10 px-6 py-4 flex items-center justify-between">
+          <div className="flex-1 flex items-center gap-4">
+            {/* Play Audio Button */}
+            <button
+              onClick={() => {
+                if (currentQuestionAudio) {
+                  playAiAudio(currentQuestionAudio);
+                } else {
+                  const questionText = isUsingBackendQuestions
+                    ? currentQuestionText
+                    : campaign.questions[currentQuestionIndex];
+                  if (questionText) {
+                    fetchTtsAudio(questionText);
+                  }
+                }
+              }}
+              disabled={ttsLoading}
+              className="flex-shrink-0 p-3 rounded-lg bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Play question audio"
+            >
+              <svg
+                className="w-5 h-5 text-white"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </button>
 
-              {/* AI Avatar */}
-              <div className="flex justify-center mb-10">
-                <div className="relative">
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full blur-2xl opacity-40 ${aiSpeaking ? "animate-pulse" : ""}`}
-                  ></div>
-                  <div
-                    className={`relative w-28 h-28 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl shadow-purple-500/50 border border-white/10 ${aiSpeaking ? "animate-pulse" : ""}`}
-                  >
+            <div className="flex-1">
+              <p className="text-white/70 text-sm font-medium">
+                Current Question
+              </p>
+              <h3 className="text-white text-lg font-bold">
+                {isUsingBackendQuestions
+                  ? currentQuestionText || "..."
+                  : campaign.questions[currentQuestionIndex]}
+              </h3>
+            </div>
+          </div>
+
+          {/* Timer */}
+          <div className="flex items-center gap-2 glass-sm px-5 py-3 rounded-2xl border border-white/10 ml-6 flex-shrink-0">
+            <div
+              className={`w-2 h-2 ${isRecording ? "bg-red-500 animate-pulse" : "bg-slate-600"} rounded-full`}
+            ></div>
+            <span className="text-white font-mono font-bold text-lg">
+              {formatTime(recordingTime)}
+            </span>
+          </div>
+        </div>
+
+        {/* Main Content - Split Layout */}
+        <div className="flex-1 flex gap-4 p-6 overflow-hidden">
+          {/* Left - AI Interviewer */}
+          <div className="w-1/2 flex flex-col items-center justify-center">
+            <div className="text-center mb-8">
+              <div className="relative w-48 h-48 mx-auto mb-6">
+                <div
+                  className={`absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full blur-3xl ${aiSpeaking ? "animate-pulse" : "opacity-40"}`}
+                ></div>
+                <div
+                  className={`relative w-48 h-48 bg-gradient-to-r from-blue-400/20 via-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center backdrop-blur-xl border-2 border-white/20 shadow-2xl shadow-purple-500/30 ${aiSpeaking ? "animate-pulse" : ""}`}
+                >
+                  {campaign.companyLogo ? (
+                    <img
+                      src={campaign.companyLogo}
+                      alt={campaign.companyName || "Company Logo"}
+                      className="w-40 h-40 object-contain rounded-full"
+                    />
+                  ) : (
                     <svg
-                      className="w-14 h-14 text-white"
+                      className="w-24 h-24 text-white"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -1118,387 +1285,245 @@ export default function RecordPage() {
                         d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* Question Text - Always Display */}
-              <div className="text-center mb-10">
-                <div className="mb-3">
-                  <span
-                    className={`inline-block px-4 py-2 rounded-full text-sm font-medium ${aiSpeaking ? "bg-green-500/20 text-green-300 border border-green-500/50" : "bg-blue-500/20 text-blue-300 border border-blue-500/50"}`}
-                  >
-                    {aiSpeaking ? "🎙️ AI is speaking" : "👂 Ready to listen"}
-                  </span>
-                </div>
-                <h2 className="text-3xl md:text-4xl font-bold text-white leading-relaxed">
-                  {isUsingBackendQuestions
-                    ? currentQuestionText || "Preparing your question..."
-                    : campaign.questions[currentQuestionIndex]}
-                </h2>
-              </div>
-
-              {ttsLoading && (
-                <div className="glass-sm bg-white/5 border border-white/10 rounded-xl p-4 mb-6 text-center">
-                  <p className="text-white/70 text-sm">
-                    🎙️ AI is generating voice...
+              {/* Company Info */}
+              <div className="space-y-2">
+                {campaign.companyName && (
+                  <p className="text-white text-lg font-bold">
+                    {campaign.companyName}
                   </p>
-                </div>
-              )}
-
-              {/* Tip */}
-              <div className="glass-sm bg-blue-500/10 border border-blue-500/30 rounded-xl p-5 mb-8 text-center">
-                <p className="text-blue-300 text-sm">
-                  💡 Speak naturally for 30-90 seconds. Recording will start
-                  automatically!
-                </p>
+                )}
+                {campaign.productName && (
+                  <p className="text-white/70 text-sm font-medium">
+                    {campaign.productName}
+                  </p>
+                )}
+                {campaign.feedbackType && (
+                  <p className="text-blue-300/80 text-xs font-medium bg-blue-500/10 px-3 py-1 rounded-full inline-block mt-2">
+                    {campaign.feedbackType}
+                  </p>
+                )}
               </div>
 
-              {error && (
-                <div className="glass-sm bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-8">
-                  <p className="text-red-300 text-sm">{error}</p>
-                </div>
-              )}
-
-              <div className="w-full px-8 py-4 text-center">
-                <p className="text-white/70 text-base font-medium">
-                  ⏱️ Recording will start automatically after the question is
-                  read
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* RECORDING STEP - Interview Room */}
-      {step === "recording" && (
-        <div className="relative z-10 h-screen flex flex-col animate-fadeIn">
-          {/* Top Bar - Question & Timer */}
-          <div className="glass-sm border-b border-white/10 px-6 py-4 flex items-center justify-between">
-            <div className="flex-1 flex items-center gap-4">
-              {/* Play Audio Button */}
-              <button
-                onClick={() => {
-                  if (currentQuestionAudio) {
-                    playAiAudio(currentQuestionAudio);
-                  } else {
-                    const questionText = isUsingBackendQuestions
-                      ? currentQuestionText
-                      : campaign.questions[currentQuestionIndex];
-                    if (questionText) {
-                      fetchTtsAudio(questionText);
-                    }
-                  }
-                }}
-                disabled={ttsLoading}
-                className="flex-shrink-0 p-3 rounded-lg bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Play question audio"
-              >
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </button>
-
-              <div className="flex-1">
-                <p className="text-white/70 text-sm font-medium">
-                  Current Question
-                </p>
-                <h3 className="text-white text-lg font-bold">
-                  {isUsingBackendQuestions
-                    ? currentQuestionText || "..."
-                    : campaign.questions[currentQuestionIndex]}
-                </h3>
-              </div>
-            </div>
-
-            {/* Timer */}
-            <div className="flex items-center gap-2 glass-sm px-5 py-3 rounded-2xl border border-white/10 ml-6 flex-shrink-0">
-              <div
-                className={`w-2 h-2 ${isRecording ? "bg-red-500 animate-pulse" : "bg-slate-600"} rounded-full`}
-              ></div>
-              <span className="text-white font-mono font-bold text-lg">
-                {formatTime(recordingTime)}
-              </span>
-            </div>
-          </div>
-
-          {/* Main Content - Split Layout */}
-          <div className="flex-1 flex gap-4 p-6 overflow-hidden">
-            {/* Left - AI Interviewer */}
-            <div className="w-1/2 flex flex-col items-center justify-center">
-              <div className="text-center mb-8">
-                <div className="relative w-48 h-48 mx-auto mb-6">
+              {aiSpeaking && (
+                <div className="mt-4 flex items-center justify-center gap-1">
                   <div
-                    className={`absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full blur-3xl ${aiSpeaking ? "animate-pulse" : "opacity-40"}`}
+                    className="w-1 h-4 bg-blue-400 rounded-full animate-pulse"
+                    style={{ animationDelay: "0ms" }}
                   ></div>
                   <div
-                    className={`relative w-48 h-48 bg-gradient-to-r from-blue-400/20 via-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center backdrop-blur-xl border-2 border-white/20 shadow-2xl shadow-purple-500/30 ${aiSpeaking ? "animate-pulse" : ""}`}
-                  >
-                    {campaign.companyLogo ? (
-                      <img
-                        src={campaign.companyLogo}
-                        alt={campaign.companyName || "Company Logo"}
-                        className="w-40 h-40 object-contain rounded-full"
-                      />
-                    ) : (
-                      <svg
-                        className="w-24 h-24 text-white"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                </div>
-
-                {/* Company Info */}
-                <div className="space-y-2">
-                  {campaign.companyName && (
-                    <p className="text-white text-lg font-bold">
-                      {campaign.companyName}
-                    </p>
-                  )}
-                  {campaign.productName && (
-                    <p className="text-white/70 text-sm font-medium">
-                      {campaign.productName}
-                    </p>
-                  )}
-                  {campaign.feedbackType && (
-                    <p className="text-blue-300/80 text-xs font-medium bg-blue-500/10 px-3 py-1 rounded-full inline-block mt-2">
-                      {campaign.feedbackType}
-                    </p>
-                  )}
-                </div>
-
-                {aiSpeaking && (
-                  <div className="mt-4 flex items-center justify-center gap-1">
-                    <div
-                      className="w-1 h-4 bg-blue-400 rounded-full animate-pulse"
-                      style={{ animationDelay: "0ms" }}
-                    ></div>
-                    <div
-                      className="w-1 h-6 bg-purple-500 rounded-full animate-pulse"
-                      style={{ animationDelay: "150ms" }}
-                    ></div>
-                    <div
-                      className="w-1 h-4 bg-pink-500 rounded-full animate-pulse"
-                      style={{ animationDelay: "300ms" }}
-                    ></div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right - User Camera */}
-            <div className="w-1/2 flex items-center justify-center overflow-hidden">
-              <div className="relative w-full h-full rounded-2xl overflow-hidden bg-black border-2 border-white/20 shadow-2xl shadow-purple-500/20">
-                {/* Video Element - Must be absolute and higher z-index than overlays */}
-                <video
-                  ref={videoRef}
-                  autoPlay={true}
-                  muted={true}
-                  playsInline={true}
-                  className="absolute inset-0 w-full h-full object-cover z-20 rounded-2xl"
-                />
-
-                {/* Recording Indicator - Below video */}
-                {stream && (
-                  <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full border border-red-500/50 z-30 backdrop-blur-sm">
-                    <div className="relative w-2 h-2">
-                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                      <div className="absolute inset-0 w-2 h-2 bg-red-500 rounded-full animate-ping"></div>
-                    </div>
-                    <span className="text-red-400 font-bold text-xs">
-                      RECORDING
-                    </span>
-                  </div>
-                )}
-
-                {/* User Label - Below video */}
-                {stream && (
-                  <div className="absolute top-4 right-4 text-white/70 text-sm font-medium z-30 bg-black/50 px-3 py-1 rounded-full">
-                    {customerName}
-                  </div>
-                )}
-
-                {/* Fallback message when no stream */}
-                {!stream && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 rounded-2xl">
-                    <div className="text-center">
-                      <svg
-                        className="w-16 h-16 text-white/40 mx-auto mb-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <p className="text-white/60 text-sm">
-                        Click "Start Recording" to begin
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {lastTranscript && (
-            <div className="px-6 pb-6">
-              <div className="glass-sm bg-white/5 border border-white/10 rounded-xl p-4">
-                <p className="text-white/60 text-xs mb-2">
-                  Last response (transcribed)
-                </p>
-                <p className="text-white/80 text-sm">{lastTranscript}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Bottom Controls */}
-          <div className="glass-sm border-t border-white/10 px-6 py-4 flex items-center justify-center gap-4">
-            {/* Status Display */}
-            <div className="flex-1 text-center">
-              {!isRecording ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-                  <p className="text-white/70 text-sm">
-                    Waiting for next question...
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="relative w-3 h-3">
-                    <div className="absolute inset-0 bg-red-500 rounded-full animate-pulse"></div>
-                    <div className="absolute inset-1 border-2 border-red-500 rounded-full animate-ping"></div>
-                  </div>
-                  <p className="text-red-400 text-sm font-medium">
-                    Recording... (Auto-stops after silence)
-                  </p>
+                    className="w-1 h-6 bg-purple-500 rounded-full animate-pulse"
+                    style={{ animationDelay: "150ms" }}
+                  ></div>
+                  <div
+                    className="w-1 h-4 bg-pink-500 rounded-full animate-pulse"
+                    style={{ animationDelay: "300ms" }}
+                  ></div>
                 </div>
               )}
             </div>
-
-            {/* Mute Button (kept for user control) */}
-            <button
-              onClick={() => setIsMuted(!isMuted)}
-              className={`p-4 rounded-full transition-all duration-300 flex-shrink-0 ${
-                isMuted
-                  ? "bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30"
-                  : "glass-sm border border-white/10 text-white/70 hover:bg-white/10"
-              }`}
-              title={isMuted ? "Unmute microphone" : "Mute microphone"}
-            >
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                {isMuted ? (
-                  <path d="M13.5 4.06c0-1.336-1.616-2.256-2.73-1.72l-5.24 2.97A4 4 0 005 9.073V15a4 4 0 004 4h.5m7.07-6.649l2.905 2.905M19 13a7 7 0 11-14 0 7 7 0 0114 0z" />
-                ) : (
-                  <path d="M19.114 5.636l1.06-1.06a1.5 1.5 0 00-2.12-2.12l-1.06 1.06a8 8 0 11-11.32 11.32l1.06 1.06a1.5 1.5 0 002.12-2.12l-1.06-1.06a6 6 0 009.12-9.12zM9 13a4 4 0 118 0 4 4 0 01-8 0z" />
-                )}
-              </svg>
-            </button>
-
-            {/* Exit Button (emergency) */}
-            <button
-              onClick={cancelRecording}
-              className="p-4 rounded-full glass-sm border border-white/10 text-white/70 hover:bg-white/10 transition-all duration-300 cursor-pointer flex-shrink-0"
-              title="Exit interview"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
           </div>
-        </div>
-      )}
 
-      {/* COMPLETED STEP */}
-      {step === "completed" && (
-        <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full animate-fadeIn">
-            <div className="glass rounded-3xl p-12 shadow-2xl shadow-emerald-500/20 text-center">
-              {/* Success Icon */}
-              <div className="relative w-32 h-32 mx-auto mb-8">
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full opacity-30 blur-3xl animate-pulse"></div>
-                <div className="relative w-32 h-32 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center shadow-2xl shadow-emerald-500/40 border border-white/10">
-                  <svg
-                    className="w-16 h-16 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
+          {/* Right - User Camera */}
+          <div className="w-1/2 flex items-center justify-center overflow-hidden">
+            <div className="relative w-full h-full rounded-2xl overflow-hidden bg-black border-2 border-white/20 shadow-2xl shadow-purple-500/20">
+              {/* Video Element - Must be absolute and higher z-index than overlays */}
+              <video
+                ref={videoRef}
+                autoPlay={true}
+                muted={true}
+                playsInline={true}
+                className="absolute inset-0 w-full h-full object-cover z-20 rounded-2xl"
+              />
+
+              {/* Recording Indicator - Below video */}
+              {stream && (
+                <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full border border-red-500/50 z-30 backdrop-blur-sm">
+                  <div className="relative w-2 h-2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <div className="absolute inset-0 w-2 h-2 bg-red-500 rounded-full animate-ping"></div>
+                  </div>
+                  <span className="text-red-400 font-bold text-xs">
+                    RECORDING
+                  </span>
                 </div>
-              </div>
+              )}
 
-              <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-                Perfect! 🎉
-              </h2>
-              <p className="text-white/70 text-xl mb-8 max-w-md mx-auto">
-                Thank you {customerName}! Your interview has been recorded and
-                is being processed.
-              </p>
+              {/* User Label - Below video */}
+              {stream && (
+                <div className="absolute top-4 right-4 text-white/70 text-sm font-medium z-30 bg-black/50 px-3 py-1 rounded-full">
+                  {customerName}
+                </div>
+              )}
 
-              <div className="space-y-3">
-                <button
-                  onClick={() => router.push("/dashboard")}
-                  className="w-full px-8 py-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 transform hover:scale-105 cursor-pointer"
-                >
-                  Go to Dashboard
-                </button>
-
-                <button
-                  onClick={() => {
-                    setStep("welcome");
-                    setCurrentQuestionIndex(0);
-                    setRecordedChunks([]);
-                    sessionChunksRef.current = [];
-                    sessionRecorderRef.current = null;
-                    setCustomerName("");
-                  }}
-                  className="w-full px-8 py-3 glass-sm border border-white/10 text-white font-medium rounded-xl hover:bg-white/5 transition-all duration-300 cursor-pointer"
-                >
-                  Record Another Interview
-                </button>
-              </div>
+              {/* Fallback message when no stream */}
+              {!stream && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 rounded-2xl">
+                  <div className="text-center">
+                    <svg
+                      className="w-16 h-16 text-white/40 mx-auto mb-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <p className="text-white/60 text-sm">
+                      Click "Start Recording" to begin
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
-      )}
 
-      <style jsx>{`
+        {lastTranscript && (
+          <div className="px-6 pb-6">
+            <div className="glass-sm bg-white/5 border border-white/10 rounded-xl p-4">
+              <p className="text-white/60 text-xs mb-2">
+                Last response (transcribed)
+              </p>
+              <p className="text-white/80 text-sm">{lastTranscript}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Bottom Controls */}
+        <div className="glass-sm border-t border-white/10 px-6 py-4 flex items-center justify-center gap-4">
+          {/* Status Display */}
+          <div className="flex-1 text-center">
+            {!isRecording ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                <p className="text-white/70 text-sm">
+                  Waiting for next question...
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <div className="relative w-3 h-3">
+                  <div className="absolute inset-0 bg-red-500 rounded-full animate-pulse"></div>
+                  <div className="absolute inset-1 border-2 border-red-500 rounded-full animate-ping"></div>
+                </div>
+                <p className="text-red-400 text-sm font-medium">
+                  Recording... (Auto-stops after silence)
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Mute Button (kept for user control) */}
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className={`p-4 rounded-full transition-all duration-300 flex-shrink-0 ${isMuted
+              ? "bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30"
+              : "glass-sm border border-white/10 text-white/70 hover:bg-white/10"
+              }`}
+            title={isMuted ? "Unmute microphone" : "Mute microphone"}
+          >
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              {isMuted ? (
+                <path d="M13.5 4.06c0-1.336-1.616-2.256-2.73-1.72l-5.24 2.97A4 4 0 005 9.073V15a4 4 0 004 4h.5m7.07-6.649l2.905 2.905M19 13a7 7 0 11-14 0 7 7 0 0114 0z" />
+              ) : (
+                <path d="M19.114 5.636l1.06-1.06a1.5 1.5 0 00-2.12-2.12l-1.06 1.06a8 8 0 11-11.32 11.32l1.06 1.06a1.5 1.5 0 002.12-2.12l-1.06-1.06a6 6 0 009.12-9.12zM9 13a4 4 0 118 0 4 4 0 01-8 0z" />
+              )}
+            </svg>
+          </button>
+
+          {/* Exit Button (emergency) */}
+          <button
+            onClick={cancelRecording}
+            className="p-4 rounded-full glass-sm border border-white/10 text-white/70 hover:bg-white/10 transition-all duration-300 cursor-pointer flex-shrink-0"
+            title="Exit interview"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* COMPLETED STEP */}
+    {step === "completed" && (
+      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full animate-fadeIn">
+          <div className="glass rounded-3xl p-12 shadow-2xl shadow-emerald-500/20 text-center">
+            {/* Success Icon */}
+            <div className="relative w-32 h-32 mx-auto mb-8">
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full opacity-30 blur-3xl animate-pulse"></div>
+              <div className="relative w-32 h-32 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center shadow-2xl shadow-emerald-500/40 border border-white/10">
+                <svg
+                  className="w-16 h-16 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+              Perfect! 🎉
+            </h2>
+            <p className="text-white/70 text-xl mb-8 max-w-md mx-auto">
+              Thank you {customerName}! Your interview has been recorded and
+              is being processed.
+            </p>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="w-full px-8 py-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 transform hover:scale-105 cursor-pointer"
+              >
+                Go to Dashboard
+              </button>
+
+              <button
+                onClick={() => {
+                  setStep("welcome");
+                  setCurrentQuestionIndex(0);
+                  setRecordedChunks([]);
+                  sessionChunksRef.current = [];
+                  sessionRecorderRef.current = null;
+                  setCustomerName("");
+                }}
+                className="w-full px-8 py-3 glass-sm border border-white/10 text-white font-medium rounded-xl hover:bg-white/5 transition-all duration-300 cursor-pointer"
+              >
+                Record Another Interview
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <style jsx>{`
         @keyframes fadeIn {
           from {
             opacity: 0;
@@ -1513,6 +1538,6 @@ export default function RecordPage() {
           animation: fadeIn 0.5s ease-out forwards;
         }
       `}</style>
-    </div>
-  );
+  </div>
+);
 }

@@ -3,13 +3,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 export default function SignupPage() {
   const router = useRouter();
+  const { register } = useAuth();
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState('');
 
   const [formData, setFormData] = useState({
+    name: '',
     companyName: '',
     industry: '',
     customIndustry: '',
@@ -26,10 +30,17 @@ export default function SignupPage() {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
+    if (serverError) {
+      setServerError('');
+    }
   };
 
   const validateForm = () => {
     const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Full name is required';
+    }
 
     if (!formData.companyName.trim()) {
       newErrors.companyName = 'Company name is required';
@@ -51,23 +62,40 @@ export default function SignupPage() {
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setServerError('');
 
     if (validateForm()) {
       setLoading(true);
-      console.log('Form Data:', formData);
-      // Simulate API call
-      setTimeout(() => {
+      try {
+        const result = await register(
+          formData.name,
+          formData.email,
+          formData.password,
+          formData.companyName
+        );
+
+        if (result.success) {
+          // Redirect to dashboard on successful registration
+          router.push('/dashboard');
+        } else {
+          setServerError(result.error || 'Registration failed');
+        }
+      } catch (err) {
+        setServerError('An error occurred. Please try again.');
+        console.error('Signup error:', err);
+      } finally {
         setLoading(false);
-        router.push('/dashboard');
-      }, 800);
+      }
     }
   };
 
@@ -83,9 +111,30 @@ export default function SignupPage() {
         <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-8 shadow-2xl shadow-cyan-900/20">
           {/* Title */}
           <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent mb-2">Create Your Feedspace Account</h1>
-          <p className="text-slate-400 text-sm mb-8">Get started collecting customer feedback in minutes</p>
+          <p className="text-slate-400 text-sm mb-6">Get started collecting customer feedback in minutes</p>
+
+          {/* Server Error Message */}
+          {serverError && (
+            <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm">
+              {serverError}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Full Name */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Full Name *</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-cyan-500/50 transition duration-300 focus:bg-slate-800"
+                placeholder="John Doe"
+              />
+              {errors.name && <p className="text-red-400 text-sm mt-1">{errors.name}</p>}
+            </div>
+
             {/* Company Name */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Company Name *</label>

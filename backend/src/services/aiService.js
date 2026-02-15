@@ -1,17 +1,45 @@
 const Groq = require("groq-sdk");
 const dotenv = require("dotenv");
+const ttsService = require("./ttsService");
 
 dotenv.config();
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+// Safe Groq initialization with fallback
+let groq = null;
+if (process.env.GROQ_API_KEY) {
+  groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY,
+  });
+} else {
+  console.warn("⚠️ GROQ_API_KEY not configured. AI features will use fallback/mock data.");
+}
 
 const AI_MODEL = process.env.GROQ_AI_MODEL || "llama-3.3-70b-versatile";
+
+// Fallback questions for when AI is not available
+const FALLBACK_QUESTIONS = [
+  "What problem were you facing before using this product?",
+  "How did you discover our product?",
+  "What was your first impression when you started using it?",
+  "Can you describe a specific way this product has helped you?",
+  "What results have you seen since using our product?",
+  "How would you compare this to other solutions you've tried?",
+  "What would you tell someone considering this product?",
+  "How has this impacted your workflow or daily life?",
+  "What's one thing you wish more people knew about this product?",
+  "Would you recommend this product to colleagues or friends? Why?"
+];
 
 // Generate Interview Goal & Intent Map
 const analyzePrompt = async (userPromptText) => {
   try {
+    if (!groq) {
+      console.log("⚠️ Using fallback for analyzePrompt");
+      return {
+        goal: "Analyze the user's background and experience",
+        intentMap: ["Introduction", "Experience", "Challenges", "Future Goals"]
+      };
+    }
     const completion = await groq.chat.completions.create({
       messages: [
         {
@@ -28,13 +56,19 @@ const analyzePrompt = async (userPromptText) => {
     return JSON.parse(completion.choices[0].message.content);
   } catch (error) {
     console.error("AI Analysis Error:", error.message);
-    throw error;
+    return {
+      goal: "Analyze the user's background and experience",
+      intentMap: ["Introduction", "Experience", "Challenges", "Future Goals"]
+    };
   }
 };
 
 // Generate Next Question
 const generateNextQuestion = async (history, intentMap, currentGoal) => {
   try {
+    if (!groq) {
+      return "That's really interesting! Can you tell me more about your experience?";
+    }
     const messages = [
       {
         role: "system",
@@ -55,10 +89,16 @@ const generateNextQuestion = async (history, intentMap, currentGoal) => {
     return completion.choices[0].message.content;
   } catch (error) {
     console.error("AI Question Gen Error:", error.message);
-    throw error;
+    return "That's really interesting! Can you tell me more about that?";
   }
 };
 
+// Generate Speech (TTS) using enhanced ttsService
+const generateSpeech = async (text, voiceOption = null) => {
+  return ttsService.generateSpeech(text, voiceOption);
+};
+
+// Generate Campaign Questions
 const generateCampaignQuestions = async ({
   companyName,
   productName,
@@ -68,6 +108,10 @@ const generateCampaignQuestions = async ({
   questionCount,
 }) => {
   try {
+    if (!groq) {
+      console.log("⚠️ Using fallback questions (GROQ not configured)");
+      return { questions: FALLBACK_QUESTIONS.slice(0, questionCount || 10) };
+    }
     const completion = await groq.chat.completions.create({
       messages: [
         {
@@ -103,12 +147,22 @@ const generateCampaignQuestions = async ({
     return JSON.parse(completion.choices[0].message.content);
   } catch (error) {
     console.error("AI Campaign Questions Error:", error.message);
-    throw error;
+    console.log("⚠️ Returning fallback questions");
+    return { questions: FALLBACK_QUESTIONS.slice(0, questionCount || 10) };
   }
 };
 
 const detectSentiment = async (text) => {
   try {
+    if (!groq) {
+      // Simple keyword-based sentiment detection
+      const lower = text.toLowerCase();
+      const positive = ['love', 'great', 'amazing', 'excellent', 'awesome', 'fantastic', 'good', 'happy', 'helpful'];
+      const negative = ['hate', 'bad', 'terrible', 'awful', 'poor', 'disappointed', 'frustrated', 'useless'];
+      if (positive.some(w => lower.includes(w))) return 'positive';
+      if (negative.some(w => lower.includes(w))) return 'negative';
+      return 'neutral';
+    }
     const completion = await groq.chat.completions.create({
       messages: [
         {
@@ -143,6 +197,9 @@ const generateFollowupQuestion = async ({
   context,
 }) => {
   try {
+    if (!groq) {
+      return baseQuestion || "Can you tell me more about that?";
+    }
     const completion = await groq.chat.completions.create({
       messages: [
         {
@@ -183,6 +240,9 @@ const generateFollowupQuestion = async ({
 
 const generateClosingStatement = async (context) => {
   try {
+    if (!groq) {
+      return "Thanks so much for sharing your thoughts, buddy! You're the best!";
+    }
     const completion = await groq.chat.completions.create({
       messages: [
         {
@@ -208,7 +268,7 @@ const generateClosingStatement = async (context) => {
     const parsed = JSON.parse(completion.choices[0].message.content);
     return String(
       parsed.message ||
-        "Thanks so much for sharing your thoughts, mate! Catch you later!",
+      "Thanks so much for sharing your thoughts, mate! Catch you later!",
     ).trim();
   } catch (error) {
     console.error("AI Closing Error:", error.message);
@@ -216,11 +276,30 @@ const generateClosingStatement = async (context) => {
   }
 };
 
-const ttsService = require("./ttsService");
+// Generic AI response generation
+const generateResponse = async (prompt, maxTokens = 300) => {
+  try {
+    if (!groq) {
+      console.warn('⚠️ GROQ API not available, returning default response');
+      return 'Thank you for your feedback!';
+    }
 
-// Generate Speech (TTS) using enhanced ttsService
-const generateSpeech = async (text, voiceOption = null) => {
-  return ttsService.generateSpeech(text, voiceOption);
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      model: AI_MODEL,
+      max_tokens: maxTokens
+    });
+
+    return completion.choices[0].message.content.trim();
+  } catch (error) {
+    console.error("AI Response Generation Error:", error.message);
+    return 'Thank you for your feedback!';
+  }
 };
 
 module.exports = {
@@ -231,4 +310,5 @@ module.exports = {
   detectSentiment,
   generateFollowupQuestion,
   generateClosingStatement,
+  generateResponse,
 };

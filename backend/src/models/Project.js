@@ -16,6 +16,10 @@ const ProjectSchema = new mongoose.Schema({
         type: String,
         maxlength: [500, 'Description can not be more than 500 characters']
     },
+    questions: [{
+        type: String,
+        trim: true
+    }],
     status: {
         type: String,
         enum: ['active', 'archived', 'draft'],
@@ -34,6 +38,32 @@ const ProjectSchema = new mongoose.Schema({
             type: String,
             default: 'Welcome! We would love to hear your feedback.'
         }
+    },
+    productName: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    companyName: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    companyLogo: {
+        type: String, // URL or base64
+        default: ''
+    },
+    feedbackType: {
+        type: String,
+        default: 'General Feedback'
+    },
+    successMessage: {
+        type: String,
+        default: 'Thank you for your feedback!'
+    },
+    testimonialCount: {
+        type: Number,
+        default: 0
     },
     createdAt: {
         type: Date,

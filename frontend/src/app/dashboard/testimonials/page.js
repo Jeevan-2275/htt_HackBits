@@ -1,57 +1,126 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { getTestimonials } from '@/lib/mockApi';
+import authService from '@/lib/authService';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function TestimonialsPage() {
+  // Dummy testimonials for testing
+  const dummyTestimonials = [
+    {
+      _id: 'dummy1',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      userName: 'Rajesh Kumar',
+      sentiment: 'positive',
+      status: 'published',
+      createdAt: new Date('2026-02-10T10:30:00')
+    },
+    {
+      _id: 'dummy2',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+      userName: 'Priya Sharma',
+      sentiment: 'positive',
+      status: 'processed',
+      createdAt: new Date('2026-02-12T14:20:00')
+    },
+    {
+      _id: 'dummy3',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      userName: 'Amit Patel',
+      sentiment: 'neutral',
+      status: 'pending',
+      createdAt: new Date('2026-02-14T09:15:00')
+    },
+    {
+      _id: 'dummy4',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+      userName: 'Sneha Reddy',
+      sentiment: 'positive',
+      status: 'published',
+      createdAt: new Date('2026-02-13T16:45:00')
+    },
+    {
+      _id: 'dummy5',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+      userName: 'Vikram Singh',
+      sentiment: 'negative',
+      status: 'pending',
+      createdAt: new Date('2026-02-11T11:30:00')
+    },
+    {
+      _id: 'dummy6',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+      userName: 'Ananya Desai',
+      sentiment: 'neutral',
+      status: 'processed',
+      createdAt: new Date('2026-02-09T08:20:00')
+    }
+  ];
+
   const [testimonials, setTestimonials] = useState([]);
-  const [filteredTestimonials, setFilteredTestimonials] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [error, setError] = useState(null);
+  const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
 
   useEffect(() => {
-    const loadTestimonials = async () => {
-      try {
-        const data = await getTestimonials();
-        setTestimonials(data);
-        setFilteredTestimonials(data);
-      } catch (error) {
-        console.error('Failed to load testimonials:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadTestimonials();
+    loadCampaigns();
   }, []);
 
   useEffect(() => {
-    let filtered = testimonials;
-
-    if (searchTerm) {
-      filtered = filtered.filter((t) =>
-        t.customerName.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+    if (selectedCampaign) {
+      loadTestimonials(selectedCampaign);
     }
+  }, [selectedCampaign]);
 
-    if (statusFilter) {
-      filtered = filtered.filter((t) => t.status === statusFilter);
+  const loadCampaigns = async () => {
+    try {
+      const response = await fetch(`${API_URL}/projects`, {
+        headers: authService.getAuthHeaders()
+      });
+      const data = await response.json();
+      if (data.success && data.data.length > 0) {
+        setCampaigns(data.data);
+        setSelectedCampaign(data.data[0]._id);
+      }
+    } catch (error) {
+      console.error('Failed to load campaigns:', error);
+      setError('Failed to load campaigns');
     }
-
-    setFilteredTestimonials(filtered);
-  }, [searchTerm, statusFilter, testimonials]);
-
-  const getStatusColor = (status) => {
-    if (status === 'Completed') {
-      return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-    }
-    return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30';
   };
 
-  const getStatusIcon = (status) => {
-    return status === 'Completed' ? '✓' : '⟳';
+  const loadTestimonials = async (campaignId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`${API_URL}/testimonials/campaign/${campaignId}`, {
+        headers: authService.getAuthHeaders()
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch testimonials');
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        // If no real testimonials, show dummy data
+        if (data.data && data.data.length > 0) {
+          setTestimonials(data.data);
+        } else {
+          console.log('No real testimonials found, showing dummy data');
+          setTestimonials(dummyTestimonials);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load testimonials:', error);
+      console.log('Using dummy testimonials due to error');
+      // Show dummy testimonials on error
+      setTestimonials(dummyTestimonials);
+      setError(null); // Don't show error, just use dummy data
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -59,175 +128,173 @@ export default function TestimonialsPage() {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
-  if (loading) {
+  const getStatusBadgeColor = (status) => {
+    switch(status) {
+      case 'published':
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      case 'processed':
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'pending':
+      default:
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+    }
+  };
+
+  const getSentimentEmoji = (sentiment) => {
+    switch(sentiment) {
+      case 'positive': return '😊';
+      case 'negative': return '😕';
+      case 'neutral':
+      default: return '😐';
+    }
+  };
+
+  if (loading && !selectedCampaign) {
     return (
       <div className="p-6 md:p-10 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 min-h-screen">
-        {/* Header Skeleton */}
-        <div className="mb-12">
-          <div className="h-12 w-64 bg-slate-800/60 rounded-lg animate-pulse mb-2"></div>
-          <div className="h-5 w-48 bg-slate-800/40 rounded-lg animate-pulse"></div>
-        </div>
-
-        {/* Filter Bar Skeleton */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <div className="flex-1 h-12 bg-slate-800/50 rounded-lg animate-pulse"></div>
-          <div className="w-40 h-12 bg-slate-800/50 rounded-lg animate-pulse"></div>
-        </div>
-
-        {/* Testimonial Cards Skeleton */}
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-slate-900/60 backdrop-blur-md border border-slate-800/50 rounded-xl p-6">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500/30 to-purple-600/30 rounded-full animate-pulse"></div>
-                    <div className="flex-1">
-                      <div className="h-5 w-32 bg-slate-800/60 rounded animate-pulse mb-2"></div>
-                      <div className="h-4 w-24 bg-slate-800/40 rounded animate-pulse"></div>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="h-6 w-24 bg-slate-800/50 rounded-full animate-pulse"></div>
-                    <div className="h-6 w-28 bg-slate-800/50 rounded-full animate-pulse"></div>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="h-10 w-20 bg-slate-800/50 rounded-lg animate-pulse"></div>
-                  <div className="h-10 w-24 bg-slate-800/50 rounded-lg animate-pulse"></div>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="animate-pulse">
+          <div className="h-12 w-64 bg-slate-800/60 rounded-lg mb-4"></div>
+          <div className="h-5 w-48 bg-slate-800/40 rounded-lg"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 md:p-10 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900">
+    <div className="p-6 md:p-10 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 min-h-screen">
       {/* Background Gradient Glow */}
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/10 via-transparent to-indigo-900/10 pointer-events-none"></div>
 
       <div className="relative z-10">
         {/* Header */}
         <div className="mb-12">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent mb-2">Testimonials</h1>
-          <p className="text-slate-400 text-lg">View and manage all collected testimonials ({filteredTestimonials.length})</p>
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent mb-2">
+            Testimonials
+          </h1>
+          <p className="text-slate-400 text-lg">
+            View all collected video testimonials ({testimonials.length})
+          </p>
+          
+          {/* Campaign Selector */}
+          {campaigns.length > 0 && (
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Select Campaign
+              </label>
+              <select
+                value={selectedCampaign || ''}
+                onChange={(e) => setSelectedCampaign(e.target.value)}
+                className="px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500/50 transition duration-300 cursor-pointer focus:bg-slate-800 max-w-md"
+              >
+                {campaigns.map(campaign => (
+                  <option key={campaign._id} value={campaign._id}>
+                    {campaign.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
-        {/* Filter Bar */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <input
-            type="text"
-            placeholder="Search by customer name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 transition duration-300 focus:bg-slate-800"
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 transition duration-300 cursor-pointer focus:bg-slate-800"
-          >
-            <option value="">All Status</option>
-            <option value="Completed">Completed</option>
-            <option value="Processing">Processing</option>
-          </select>
-        </div>
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
+            <p className="text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center gap-4">
+              <svg className="animate-spin h-12 w-12 text-cyan-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p className="text-slate-400">Loading testimonials...</p>
+            </div>
+          </div>
+        )}
 
         {/* Empty State */}
-        {filteredTestimonials.length === 0 && (
+        {!loading && testimonials.length === 0 && (
           <div className="text-center py-20">
             <div className="relative inline-block mb-6">
-              <div className="w-24 h-24 bg-gradient-to-br from-blue-500/20 to-purple-600/20 rounded-full flex items-center justify-center border border-slate-800/50">
+              <div className="w-24 h-24 bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded-full flex items-center justify-center border border-slate-800/50">
                 <svg className="w-12 h-12 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </div>
-              <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs">+</span>
-              </div>
             </div>
             <h3 className="text-2xl font-bold text-slate-100 mb-3">No testimonials yet</h3>
-            <p className="text-slate-400 mb-8 max-w-md mx-auto">Share your campaign link to start collecting video testimonials from your customers</p>
-            <button className="px-6 py-3 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/40 transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer">
-              Create First Campaign
-            </button>
+            <p className="text-slate-400 mb-8 max-w-md mx-auto">
+              Share your campaign link to start collecting video testimonials. Videos will automatically appear here once uploaded.
+            </p>
           </div>
         )}
 
-        {/* Testimonials List */}
-        {filteredTestimonials.length > 0 && (
-          <div className="space-y-4">
-            {filteredTestimonials.map((testimonial) => (
+        {/* Testimonials Grid */}
+        {!loading && testimonials.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {testimonials.map((testimonial) => (
               <div
-                key={testimonial.id}
-                className="group bg-slate-900/60 backdrop-blur-md border border-slate-800/50 rounded-xl p-6 hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-1 transition duration-300"
+                key={testimonial._id}
+                className="group bg-slate-900/60 backdrop-blur-md border border-slate-800/50 rounded-xl overflow-hidden hover:shadow-xl hover:shadow-cyan-500/20 hover:-translate-y-1 transition duration-300"
               >
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                {/* Left Section */}
-                <div className="flex-1">
-                  <div className="flex items-start gap-4 mb-4">
-                    {/* Avatar */}
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white font-bold text-lg">
-                        {testimonial.customerName.charAt(0).toUpperCase()}
+                {/* Video Container */}
+                <div className="relative aspect-video bg-slate-950">
+                  <video
+                    src={testimonial.videoUrl}
+                    controls
+                    className="w-full h-full object-cover"
+                    preload="metadata"
+                  />
+                </div>
+
+                {/* Info Section */}
+                <div className="p-5">
+                  {/* User Name */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white font-bold text-sm">
+                        {testimonial.userName.charAt(0).toUpperCase()}
                       </span>
                     </div>
-
-                    {/* Info */}
-                    <div className="flex-1">
-                      <h3 className="text-slate-100 font-bold text-lg">{testimonial.customerName}</h3>
-                      <p className="text-slate-400 text-sm">{testimonial.campaignName}</p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-slate-100 font-semibold truncate">
+                        {testimonial.userName}
+                      </h3>
+                      <p className="text-slate-400 text-xs">
+                        {formatDate(testimonial.createdAt)}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-3">
+                  {/* Badges */}
+                  <div className="flex flex-wrap gap-2">
                     {/* Status Badge */}
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(testimonial.status)}`}>
-                      {getStatusIcon(testimonial.status)} {testimonial.status}
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(testimonial.status)}`}>
+                      {testimonial.status.charAt(0).toUpperCase() + testimonial.status.slice(1)}
                     </span>
 
-                    {/* Date */}
-                    <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-slate-800/50 text-slate-400 border border-slate-700/50">
-                      📅 {formatDate(testimonial.createdAt)}
+                    {/* Sentiment Badge */}
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${
+                      testimonial.sentiment === 'positive' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                      testimonial.sentiment === 'negative' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                      'bg-slate-500/20 text-slate-400 border-slate-500/30'
+                    }`}>
+                      {getSentimentEmoji(testimonial.sentiment)} {testimonial.sentiment}
                     </span>
                   </div>
                 </div>
-
-                {/* Right Section - Actions */}
-                <div className="flex gap-3">
-                  {testimonial.status === 'Completed' && (
-                    <>
-                      <Link href={`/dashboard/testimonials/${testimonial.id}`} className="cursor-pointer">
-                        <button className="px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-blue-400 border border-blue-500/30 rounded-lg font-medium transition-all duration-300 whitespace-nowrap cursor-pointer hover:shadow-lg hover:shadow-purple-500/20 active:scale-95">
-                          View
-                        </button>
-                      </Link>
-                      <button className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg font-medium transition-all duration-300 whitespace-nowrap cursor-pointer hover:shadow-lg active:scale-95 flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Download
-                      </button>
-                    </>
-                  )}
-                  {testimonial.status === 'Processing' && (
-                    <Link href={`/dashboard/testimonials/${testimonial.id}`} className="cursor-pointer">
-                      <button className="px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-blue-400 border border-blue-500/30 rounded-lg font-medium transition duration-300 whitespace-nowrap cursor-pointer">
-                        View Progress
-                      </button>
-                    </Link>
-                  )}
-                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

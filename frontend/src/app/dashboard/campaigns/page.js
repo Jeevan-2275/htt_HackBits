@@ -2,31 +2,52 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getCampaigns } from '@/lib/mockApi';
+import { useAuth } from '@/context/AuthContext';
+import campaignService from '@/lib/campaignService';
 
 export default function CampaignsPage() {
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    if (authLoading) return;
+    
+    if (!isAuthenticated) return;
+
     const loadCampaigns = async () => {
       try {
-        const data = await getCampaigns();
+        setLoading(true);
+        setError('');
+        const data = await campaignService.getCampaigns();
         setCampaigns(data);
-      } catch (error) {
-        console.error('Failed to load campaigns:', error);
+      } catch (err) {
+        console.error('Failed to load campaigns:', err);
+        setError(err.message || 'Failed to load campaigns');
       } finally {
         setLoading(false);
       }
     };
 
     loadCampaigns();
-  }, []);
+  }, [isAuthenticated, authLoading]);
 
   const handleCopyLink = (campaignId) => {
     const publicLink = `${window.location.origin}/record/${campaignId}`;
     navigator.clipboard.writeText(publicLink);
     alert('Public link copied to clipboard!');
+  };
+
+  const handleDeleteCampaign = async (campaignId) => {
+    if (!window.confirm('Are you sure you want to delete this campaign?')) return;
+
+    try {
+      await campaignService.deleteCampaign(campaignId);
+      setCampaigns(campaigns.filter(c => c._id !== campaignId));
+    } catch (err) {
+      setError(err.message || 'Failed to delete campaign');
+    }
   };
 
   const formatDate = (dateString) => {
@@ -56,6 +77,13 @@ export default function CampaignsPage() {
           </Link>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300">
+            {error}
+          </div>
+        )}
+
         {/* Empty State */}
         {!loading && campaigns.length === 0 && (
           <div className="text-center py-20">
@@ -83,7 +111,7 @@ export default function CampaignsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {campaigns.map((campaign) => (
               <div
-                key={campaign.id}
+                key={campaign._id}
                 className="group relative bg-slate-900/60 backdrop-blur-md border border-slate-800/50 rounded-xl p-6 hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-1 transition duration-300 flex flex-col overflow-hidden"
               >
                 {/* Gradient Top Border */}
@@ -117,16 +145,22 @@ export default function CampaignsPage() {
                 {/* Actions */}
                 <div className="flex gap-3">
                   <button
-                    onClick={() => handleCopyLink(campaign.id)}
+                    onClick={() => handleCopyLink(campaign._id)}
                     className="flex-1 px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-blue-400 border border-blue-500/30 rounded-lg font-medium transition duration-300 cursor-pointer"
                   >
                     Copy Link
                   </button>
-                  <Link href={`/record/${campaign.id}`} className="flex-1 cursor-pointer">
+                  <Link href={`/record/${campaign._id}`} className="flex-1 cursor-pointer">
                     <button className="w-full px-4 py-2 bg-slate-800/40 hover:bg-slate-800/60 text-slate-100 rounded-lg font-medium transition duration-300 cursor-pointer border border-slate-800/30">
                       View
                     </button>
                   </Link>
+                  <button
+                    onClick={() => handleDeleteCampaign(campaign._id)}
+                    className="flex-1 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg font-medium transition duration-300 cursor-pointer"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             ))}

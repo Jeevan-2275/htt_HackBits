@@ -3,28 +3,44 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // Clear error when user starts typing
+    if (error) setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    // Simulate API call delay
-    setTimeout(() => {
+
+    try {
+      const result = await login(formData.email, formData.password);
+      if (result.success) {
+        // Redirect to dashboard on successful login
+        router.push('/dashboard');
+      } else {
+        setError(result.error || 'Login failed');
+      }
+    } catch (err) {
+      setError('An error occurred. Please try again.');
+      console.error('Login error:', err);
+    } finally {
       setLoading(false);
-      router.push('/dashboard');
-    }, 800);
+    }
   };
 
   return (
@@ -39,7 +55,14 @@ export default function LoginPage() {
         <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-8 shadow-2xl shadow-cyan-900/20">
           {/* Title */}
           <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent mb-2">Welcome Back</h1>
-          <p className="text-slate-400 text-sm mb-8">Sign in to your Feedspace account</p>
+          <p className="text-slate-400 text-sm mb-6">Sign in to your Feedspace account</p>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email */}

@@ -3,11 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createCampaign, generateAIQuestions } from '@/lib/mockApi';
+import { useAuth } from '@/context/AuthContext';
+import campaignService from '@/lib/campaignService';
+import { generateAIQuestions } from '@/lib/mockApi';
 import DynamicListInput from '@/components/DynamicListInput';
 
 export default function CreateCampaignPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [formData, setFormData] = useState({
     campaignName: '',
     productDescription: '',
@@ -26,6 +29,16 @@ export default function CreateCampaignPage() {
   const [emails, setEmails] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState(false);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="p-6 md:p-10 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-slate-400">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -51,7 +64,7 @@ export default function CreateCampaignPage() {
 
     setGeneratingQuestions(true);
     setError('');
-    
+
     try {
       const result = await generateAIQuestions({
         companyName: formData.companyName,
@@ -76,36 +89,46 @@ export default function CreateCampaignPage() {
       return;
     }
 
+    if (!generatedQuestions || generatedQuestions.length === 0) {
+      setError('Please generate or add questions for this campaign');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      const selectedQuestions = manualQuestions.length > 0
-        ? manualQuestions
-        : (generatedQuestions.length > 0 ? generatedQuestions : undefined);
+      const campaignPayload = {
+        name: formData.campaignName,
+        description: formData.productDescription,
+        questions: manualQuestions.length > 0 ? manualQuestions : generatedQuestions,
+        productName: formData.productName || formData.campaignName,
+        feedbackType: formData.feedbackType,
+        companyName: formData.companyName,
+        companyLogo: formData.companyLogo,
+      };
 
-      const campaign = await createCampaign(
-        formData.campaignName,
-        formData.productDescription,
-        selectedQuestions,
-        {
-          companyName: formData.companyName,
-          productName: formData.productName || formData.campaignName,
-          feedbackType: formData.feedbackType,
-          companyLogo: formData.companyLogo,
-          questionSetId: manualQuestions.length > 0 ? null : questionSetId,
-        }
-      );
+      console.log('📤 Creating campaign with payload:', campaignPayload);
+      const campaign = await campaignService.createCampaign(campaignPayload);
+      console.log('✅ Campaign created:', campaign);
+      console.log('📌 Campaign ID:', campaign._id);
       setCreatedCampaign(campaign);
     } catch (err) {
-      setError('Failed to create campaign. Please try again.');
+      setError(err.message || 'Failed to create campaign. Please try again.');
+      console.error('Campaign creation error:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleCopyLink = () => {
-    const publicLink = `${window.location.origin}/record/${createdCampaign.id}`;
+    if (!createdCampaign || !createdCampaign._id) {
+      console.error('❌ Missing campaign ID:', createdCampaign);
+      setError('Campaign data missing. Please try creating again.');
+      return;
+    }
+    const publicLink = `${window.location.origin}/record/${createdCampaign._id}`;
+    console.log('🔗 Recording link:', publicLink);
     navigator.clipboard.writeText(publicLink);
     alert('Public link copied to clipboard!');
   };
@@ -131,8 +154,8 @@ export default function CreateCampaignPage() {
         return;
       }
 
-      const publicLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/record/${createdCampaign.id}`;
-      
+      const publicLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/record/${createdCampaign._id}`;
+
       // Call the email API endpoint
       const response = await fetch('/api/send-email', {
         method: 'POST',
@@ -195,7 +218,7 @@ export default function CreateCampaignPage() {
 
             <div>
               <p className="text-white/50 text-sm mb-2">Campaign ID</p>
-              <p className="text-white/80 font-mono text-sm bg-white/5 px-4 py-2 rounded border border-white/10">{createdCampaign.id}</p>
+              <p className="text-white/80 font-mono text-sm bg-white/5 px-4 py-2 rounded border border-white/10">{createdCampaign._id}</p>
             </div>
 
             <div>
@@ -204,7 +227,7 @@ export default function CreateCampaignPage() {
                 <input
                   type="text"
                   readOnly
-                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/record/${createdCampaign.id}`}
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/record/${createdCampaign._id}`}
                   className="flex-1 px-4 py-2 bg-white/5 text-white/80 rounded-lg text-sm border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
                 <button
@@ -276,7 +299,7 @@ export default function CreateCampaignPage() {
               </button>
             </Link>
             <button
-              onClick={() => window.open(`/record/${createdCampaign.id}`, '_blank')}
+              onClick={() => window.open(`/record/${createdCampaign._id}`, '_blank')}
               className="w-full px-6 py-3 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 text-white rounded-lg font-bold transition cursor-pointer hover:scale-105"
             >
               🎥 Test Recording Link
@@ -340,7 +363,7 @@ export default function CreateCampaignPage() {
               </div>
               <p className="text-white/40 text-xs mt-2">Upload a PNG, JPG or GIF (max 2MB)</p>
             </div>
-            
+
             {/* Company Name */}
             <div className="mb-6">
               <label htmlFor="companyName" className="block text-sm font-semibold text-white/80 mb-3">
@@ -394,7 +417,7 @@ export default function CreateCampaignPage() {
                 <option value="Implementation Feedback">Implementation Feedback</option>
               </select>
             </div>
-            
+
             {/* Campaign Name */}
             <div className="mb-6">
               <label htmlFor="campaignName" className="block text-sm font-semibold text-white/80 mb-3">
@@ -444,7 +467,7 @@ export default function CreateCampaignPage() {
               <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
               AI Questions
             </h2>
-            
+
             {/* Generate Questions Button */}
             <button
               onClick={handleGenerateQuestions}
