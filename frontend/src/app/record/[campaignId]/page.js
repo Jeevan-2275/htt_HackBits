@@ -38,6 +38,16 @@ export default function RecordPage() {
   // Step-based flow
   const [step, setStep] = useState("welcome");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const currentQuestionIndexRef = useRef(0);
+  const campaignRef = useRef(null);
+
+  useEffect(() => {
+    currentQuestionIndexRef.current = currentQuestionIndex;
+  }, [currentQuestionIndex]);
+
+  useEffect(() => {
+    campaignRef.current = campaign;
+  }, [campaign]);
   const [customerName, setCustomerName] = useState("");
 
   // Recording state
@@ -63,6 +73,8 @@ export default function RecordPage() {
   const [processingStep, setProcessingStep] = useState(0);
   const [testimonialId, setTestimonialId] = useState(null);
   const hasStartedSpeakingRef = useRef(false);
+  const speechCooldownRef = useRef(0);
+  const soundPersistenceRef = useRef(0);
 
   // Load campaign
   useEffect(() => {
@@ -167,6 +179,7 @@ export default function RecordPage() {
     ) {
       console.log("Ai start speeking ,,,,,");
       setAiSpeaking(true);
+      aiSpeakingRef.current = true;
 
       if (aiAudioRef.current) {
         aiAudioRef.current.pause();
@@ -187,6 +200,8 @@ export default function RecordPage() {
       audio.onended = () => {
         console.log("Ai end speeking ,,,,");
         setAiSpeaking(false);
+        aiSpeakingRef.current = false;
+        speechCooldownRef.current = Date.now() + 1500; // 1.5s dead zone for echo
       };
 
       audio.onerror = (e) => {
@@ -226,6 +241,7 @@ export default function RecordPage() {
 
     console.log("Ai start speeking ,,,,,");
     setAiSpeaking(true);
+    aiSpeakingRef.current = true;
 
     // Cancel any ongoing speech
     if (window.speechSynthesis) {
@@ -249,6 +265,8 @@ export default function RecordPage() {
     utterance.onend = () => {
       console.log("Ai end speeking ,,,,");
       setAiSpeaking(false);
+      aiSpeakingRef.current = false;
+      speechCooldownRef.current = Date.now() + 1500; // 1.5s dead zone for echo
     };
 
     utterance.onerror = (e) => {
@@ -388,6 +406,41 @@ export default function RecordPage() {
         "%c[UPLOAD] ✅ VIDEO SUCCESSFULLY STORED IN CLOUDINARY",
         "color: #4CAF50; font-weight: bold;",
       );
+
+      // --- AUTOMATION: Trigger Backend Processing ---
+      if (sessionId) {
+        console.log(
+          "%c[AUTOMATION] ⚙️ TRIGGERING POST-PROCESSING TASKS...",
+          "color: #2196F3; font-weight: bold;",
+        );
+
+        // 1. Kick off highlights, transcription and reel generation
+        fetch("http://localhost:5000/api/process/highlights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        })
+          .then((res) => res.json())
+          .then((data) =>
+            console.log("[AUTOMATION] Highlights job started:", data),
+          )
+          .catch((err) =>
+            console.error("[AUTOMATION] Highlights trigger failed:", err),
+          );
+
+        // 2. The user also explicitly asked for api/process/reel (though highlights usually does it)
+        // We trigger it here just in case or if they want to ensure it runs
+        fetch("http://localhost:5000/api/process/reel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        })
+          .then((res) => res.json())
+          .then((data) => console.log("[AUTOMATION] Reel job started:", data))
+          .catch((err) =>
+            console.error("[AUTOMATION] Reel trigger failed:", err),
+          );
+      }
     } catch (err) {
       console.error("[UPLOAD] ❌ ERROR DURING UPLOAD:", err);
       setError(err.message || "Failed to upload video");
@@ -461,18 +514,6 @@ export default function RecordPage() {
       }
 
       const data = await response.json();
-      if (data.completed) {
-        await stopSessionRecordingAndUpload();
-        if (stream) {
-          stream.getTracks().forEach((track) => track.stop());
-          setStream(null);
-        }
-        if (videoRef.current) {
-          videoRef.current.srcObject = null;
-        }
-        setStep("completed");
-        return;
-      }
 
       setCurrentQuestionIndex((prev) => prev + 1);
       setCurrentQuestionText(data.reply?.text || "");
@@ -487,6 +528,27 @@ export default function RecordPage() {
           data.reply.text.substring(0, 40),
         );
         fetchTtsAudio(data.reply.text);
+      }
+
+      if (data.completed) {
+        console.log(
+          "%c[FLOW] 🏁 AI signaled completion. Waiting for final playback before upload...",
+          "color: #9C27B0; font-weight: bold;",
+        );
+        // We set the step to completed ONLY after a delay or on silence
+        // For backend mode, we use a slightly longer delay to ensure the thank you is heard
+        setTimeout(async () => {
+          await stopSessionRecordingAndUpload();
+          if (stream) {
+            stream.getTracks().forEach((track) => track.stop());
+            setStream(null);
+          }
+          if (videoRef.current) {
+            videoRef.current.srcObject = null;
+          }
+          setStep("completed");
+        }, 6000); // 6 second delay for the final "Thank you" playback
+        return;
       }
 
       setStep("question");
@@ -519,28 +581,20 @@ export default function RecordPage() {
 
   // Auto-start recording when question finishes playing
   useEffect(() => {
-    if (
-      (step === "recording" || step === "question") &&
-      !isRecording &&
-      !isFetchingQuestion
-    ) {
+    if (step === "question" && !isRecording && !isFetchingQuestion) {
       console.log(
-        "%c[FLOW] 🎬 AUTO-STARTING RECORDING (Question finished playing)",
+        "%c[FLOW] 🎬 AUTO-STARTING RECORDING (Ready for next input)",
         "background: #9C27B0; color: white; padding: 2px 6px; border-radius: 3px;",
       );
-      // Small delay to ensure question finished playing
+      // Small delay to ensure any previous playback/TTS is winding down
       const timer = setTimeout(() => {
         if (!isRecording) {
-          console.log(
-            "%c[FLOW] ▶️ Starting recording...",
-            "background: #9C27B0; color: white; padding: 2px 6px; border-radius: 3px;",
-          );
           startRecording();
         }
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [step, aiSpeaking, isRecording, isFetchingQuestion]);
+  }, [step, isRecording, isFetchingQuestion]);
 
   // Reset silence timer and speaking state when AI finishes speaking
   useEffect(() => {
@@ -562,8 +616,8 @@ export default function RecordPage() {
       if (!aiSpeakingRef.current && lastSoundTimeRef.current) {
         const silenceTime = Date.now() - lastSoundTimeRef.current;
 
-        // Thresholds
-        const silenceThreshold = hasStartedSpeakingRef.current ? 2500 : 8000; // 2.5s if speaking, 8s to start
+        // Thresholds: 2 seconds after speaking, 8 seconds of absolute silence to auto-advance
+        const silenceThreshold = hasStartedSpeakingRef.current ? 2000 : 8000;
 
         if (silenceTime > silenceThreshold) {
           console.log("client end speekin ,,,,,,");
@@ -597,10 +651,13 @@ export default function RecordPage() {
       let noiseFloor = 10;
 
       const detectSound = () => {
-        if (aiSpeakingRef.current) {
-          if (isRecording) {
-            requestAnimationFrame(detectSound);
-          }
+        if (!isRecording) return;
+
+        const now = Date.now();
+        if (aiSpeakingRef.current || now < speechCooldownRef.current) {
+          lastSoundTimeRef.current = now;
+          soundPersistenceRef.current = 0;
+          requestAnimationFrame(detectSound);
           return;
         }
 
@@ -608,29 +665,24 @@ export default function RecordPage() {
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
 
         // Dynamic threshold: Only trigger if significantly above noise floor
-        if (average > noiseFloor + 8) {
-          // Log when customer starts speaking
-          if (!hasStartedSpeakingRef.current) {
-            console.log("Customer start speaking ,,,,,");
-            hasStartedSpeakingRef.current = true;
+        if (average > noiseFloor + 12) {
+          // Require sound to persist for 200ms before counting as speaking
+          if (soundPersistenceRef.current === 0) {
+            soundPersistenceRef.current = now;
+          } else if (now - soundPersistenceRef.current > 200) {
+            if (!hasStartedSpeakingRef.current) {
+              console.log("Customer start speaking ,,,,,");
+              hasStartedSpeakingRef.current = true;
+            }
+            lastSoundTimeRef.current = now;
           }
-          lastSoundTimeRef.current = Date.now();
         } else {
-          // Gradually update noise floor to follow constant background noise
+          soundPersistenceRef.current = 0;
+          // Gradually update noise floor
           noiseFloor = noiseFloor * 0.98 + average * 0.02;
-
-          // Going silent
-          if (
-            hasStartedSpeakingRef.current &&
-            Date.now() - lastSoundTimeRef.current > 300
-          ) {
-            // Internal tracking
-          }
         }
 
-        if (isRecording) {
-          requestAnimationFrame(detectSound);
-        }
+        requestAnimationFrame(detectSound);
       };
 
       detectSound();
@@ -725,13 +777,16 @@ export default function RecordPage() {
             "background: #9C27B0; color: white; padding: 2px 6px; border-radius: 3px;",
           );
           fetchNextQuestion(blob);
-        } else if (!isUsingBackendQuestions) {
+        } else if (!isUsingBackendQuestions && campaignRef.current) {
           // Local questions flow
-          if (currentQuestionIndex < campaign.questions.length - 1) {
+          const currentIdx = currentQuestionIndexRef.current;
+          const questions = campaignRef.current.questions;
+
+          if (currentIdx < questions.length - 1) {
             console.log(
               "%c[FLOW] ⏭️ AUTO-ADVANCING TO NEXT QUESTION",
               "background: #9C27B0; color: white; padding: 2px 6px; border-radius: 3px;",
-              `(${currentQuestionIndex + 1}/${campaign.questions.length})`,
+              `(${currentIdx + 1}/${questions.length})`,
             );
             setTimeout(() => {
               setCurrentQuestionIndex((prev) => prev + 1);
@@ -741,7 +796,7 @@ export default function RecordPage() {
             }, 300);
           } else {
             console.log(
-              "%c[FLOW] ✅ ALL QUESTIONS COMPLETED",
+              "%c[FLOW] ✅ ALL QUESTIONS COMPLETED (Local)",
               "background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px;",
             );
             await stopSessionRecordingAndUpload();

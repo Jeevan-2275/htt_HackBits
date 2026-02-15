@@ -181,6 +181,41 @@ const generateFollowupQuestion = async ({
   }
 };
 
+const generateClosingStatement = async (context) => {
+  try {
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You are a casual buddy. The interview is OVER.",
+            "Say a super warm, personalized thank you to the friend for sharing their thoughts.",
+            "Mention specific details if provided (like the company or product) but keep it brief.",
+            'Use "bud", "mate", etc. Be VERY informal and friendly.',
+            "One sentence ONLY.",
+            'Return JSON with key "message": string.',
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify(context),
+        },
+      ],
+      model: AI_MODEL,
+      response_format: { type: "json_object" },
+    });
+
+    const parsed = JSON.parse(completion.choices[0].message.content);
+    return String(
+      parsed.message ||
+        "Thanks so much for sharing your thoughts, mate! Catch you later!",
+    ).trim();
+  } catch (error) {
+    console.error("AI Closing Error:", error.message);
+    return "Thanks so much for sharing your thoughts, buddy! You're the best!";
+  }
+};
+
 const ttsService = require("./ttsService");
 
 // Generate Speech (TTS) using enhanced ttsService
@@ -195,4 +230,5 @@ module.exports = {
   generateCampaignQuestions,
   detectSentiment,
   generateFollowupQuestion,
+  generateClosingStatement,
 };
