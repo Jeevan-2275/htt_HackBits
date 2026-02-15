@@ -9,12 +9,13 @@ if (process.env.FFMPEG_PATH) {
 
 // Create Reel from Assets
 const generateReel = async (videoPaths, highlightSegments, outputPath) => {
+  const absOutputPath = path.resolve(outputPath);
   return new Promise((resolve, reject) => {
     let command = ffmpeg();
 
     // Add inputs (video chunks)
     videoPaths.forEach((p) => {
-      command = command.input(p);
+      command = command.input(path.resolve(p));
     });
 
     // Complex filter graph for vertical crop and concatenation
@@ -30,15 +31,18 @@ const generateReel = async (videoPaths, highlightSegments, outputPath) => {
     // fluent-ffmpeg mergeToFile is easier for concatenation
 
     command
+      .videoCodec("libx264")
+      .audioCodec("aac")
+      .outputOptions(["-pix_fmt yuv420p", "-movflags +faststart"])
       .on("error", (err) => {
         console.error("FFmpeg Error:", err);
         reject(err);
       })
       .on("end", () => {
-        console.log("Reel created");
-        resolve(outputPath);
+        console.log("Reel created:", absOutputPath);
+        resolve(absOutputPath);
       })
-      .mergeToFile(outputPath, path.dirname(outputPath)); // mergeToFile handles concat
+      .save(absOutputPath); // Using .save() for better control over codecs than mergeToFile
 
     // Note: mergeToFile doesn't easily allow complex filters per input.
     // For a demo, getting them joined is step 1.
@@ -122,9 +126,27 @@ const trimClip = (inputPath, startTime, endTime, outputPath) => {
   const duration = Math.max(0, endTime - startTime);
 
   return new Promise((resolve, reject) => {
+    // We normalize everything to 30fps and 44.1kHz to ensure concat works smoothly
     ffmpeg(inputPath)
       .setStartTime(startTime)
       .setDuration(duration)
+      .videoCodec("libx264")
+      .audioCodec("aac")
+      .outputOptions([
+        "-pix_fmt yuv420p",
+        "-map_metadata -1",
+        "-reset_timestamps 1",
+        "-avoid_negative_ts make_zero",
+        "-x264opts keyint=30:min-keyint=30:scenecut=-1", // Forced keyframes for stability
+      ])
+      .videoFilters([
+        "fps=30", // Strict Constant Frame Rate
+        "setpts=PTS-STARTPTS",
+      ])
+      .audioFilters([
+        "aresample=44100", // Ensure constant sample rate
+        "asetpts=PTS-STARTPTS", // Normalize audio timestamps
+      ])
       .on("error", (err) => reject(err))
       .on("end", () => resolve(outputPath))
       .save(outputPath);
@@ -152,38 +174,54 @@ const concatClips = (clipPaths, outputPath) => {
   return new Promise((resolve, reject) => {
     if (clipPaths.length === 0) return reject(new Error("No clips to concat"));
     if (clipPaths.length === 1) {
-      fs.copyFileSync(clipPaths[0], outputPath);
+      fs.copyFileSync(path.resolve(clipPaths[0]), outputPath);
       return resolve(outputPath);
     }
 
-    // Create a concat list file for FFmpeg with absolute paths to avoid Windows directory issues
-    const absListPath = path.resolve(outputPath + ".txt");
-    const listContent = clipPaths
-      .map((p) => `file '${path.resolve(p).replace(/\\/g, "/")}'`)
-      .join("\n");
+    const absOutputPath = path.resolve(outputPath);
+    let command = ffmpeg();
+
+    // Add all inputs
+    clipPaths.forEach((p) => {
+      command = command.input(path.resolve(p));
+    });
+
+    // Build the concat filter: [0:v][0:a][1:v][1:a]...concat=n=N:v=1:a=1[v][a]
+    const n = clipPaths.length;
+    let filterString = "";
+    for (let i = 0; i < n; i++) {
+      // Pre-normalize each input stream just in case
+      filterString += `[${i}:v]fps=30,setpts=PTS-STARTPTS[v${i}];`;
+      filterString += `[${i}:a]aresample=44100,asetpts=PTS-STARTPTS[a${i}];`;
+    }
+    for (let i = 0; i < n; i++) {
+      filterString += `[v${i}][a${i}]`;
+    }
+    filterString += `concat=n=${n}:v=1:a=1[v][a]`;
 
     console.log(
-      `%c[FFMPEG] 📜 CONCAT LIST: ${absListPath}`,
-      "color: #FF9800; font-weight: bold;",
+      `[FFMPEG] 🔗 Merging ${n} clips via strictly normalized concat filter...`,
     );
-    console.log(`[FFMPEG] Content:\n${listContent}`);
 
-    fs.writeFileSync(absListPath, listContent);
-
-    ffmpeg()
-      .input(absListPath)
-      .inputOptions(["-f", "concat", "-safe", "0"])
-      .outputOptions(["-c", "copy"])
+    command
+      .complexFilter([filterString], ["v", "a"])
+      .videoCodec("libx264")
+      .audioCodec("aac")
+      .outputOptions([
+        "-pix_fmt yuv420p",
+        "-movflags +faststart",
+        "-vsync cfr", // COMPATIBILITY: Force Constant Frame Rate
+        "-x264opts keyint=30:min-keyint=30:scenecut=-1",
+      ])
       .on("error", (err) => {
-        console.error("[FFMPEG] ❌ Concat Error:", err);
-        if (fs.existsSync(absListPath)) fs.unlinkSync(absListPath);
+        console.error("[FFMPEG] ❌ Concat Filter Error:", err);
         reject(err);
       })
       .on("end", () => {
-        if (fs.existsSync(absListPath)) fs.unlinkSync(absListPath);
-        resolve(outputPath);
+        console.log("[FFMPEG] ✅ Ultra-Stable Reel created:", absOutputPath);
+        resolve(absOutputPath);
       })
-      .save(outputPath);
+      .save(absOutputPath);
   });
 };
 
