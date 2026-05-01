@@ -48,6 +48,25 @@ exports.getTestimonials = async (req, res) => {
     }
 };
 
+// @desc    Get ALL testimonials/sessions for the logged in user (across all projects)
+// @route   GET /api/testimonials
+exports.getAllTestimonials = async (req, res) => {
+    try {
+        // Find all projects owned by user
+        const projects = await Project.find({ userId: req.user.id });
+        const projectIds = projects.map(p => p._id);
+
+        const testimonials = await InterviewSession.find({ projectId: { $in: projectIds } })
+            .populate('projectId', 'name')
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({ success: true, count: testimonials.length, data: testimonials });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
 // @desc    Get single testimonial
 // @route   GET /api/testimonials/:id
 exports.getTestimonial = async (req, res) => {

@@ -41,6 +41,7 @@ exports.getProject = async (req, res) => {
     }
 };
 
+<<<<<<< HEAD
 // @desc    Get single project (Public - for recording page)
 // @route   GET /api/projects/public/:id
 // @access  Public
@@ -91,6 +92,9 @@ exports.getProjectPublic = async (req, res) => {
         res.status(500).json({ success: false, error: 'Server Error', details: error.message });
     }
 };
+=======
+const CampaignQuestionSet = require('../models/CampaignQuestionSet');
+>>>>>>> 8370a91 (Update backend controllers (interview, project, testimonial))
 
 // @desc    Create new project
 // @route   POST /api/projects
@@ -114,6 +118,19 @@ exports.createProject = async (req, res) => {
 
         // Add user to req.body
         req.body.userId = req.user.id;
+
+        // Handle Questions: If provided, create a QuestionSet
+        if (req.body.questions && Array.isArray(req.body.questions)) {
+            const questionSet = await CampaignQuestionSet.create({
+                companyName: req.body.companyName || req.body.name, // Fallback
+                productName: req.body.productName || 'Default Product',
+                feedbackType: req.body.feedbackType || 'General',
+                campaignName: req.body.name,
+                productDescription: req.body.description || 'No description', 
+                questions: req.body.questions
+            });
+            req.body.questionSetId = questionSet._id;
+        }
 
         const project = await Project.create(req.body);
 

@@ -1,4 +1,4 @@
-const Project = require("../models/Project"); // Import Project model
+const Project = require("../models/Project");
 const InterviewSession = require("../models/InterviewSession");
 const ConversationTurn = require("../models/ConversationTurn");
 const UserPrompt = require("../models/UserPrompt");
@@ -266,12 +266,32 @@ exports.nextTurn = async (req, res) => {
     // 1. Transcribe User Audio (needed immediately for AI)
     const userText = await transcriptionService.transcribeAudio(req.file.path);
 
+<<<<<<< HEAD
     // 2. Save User Turn immediately with text (upload audio in background)
     const userTurn = await ConversationTurn.create({
       sessionId,
       role: "user",
       content: userText,
       audioUrl: null, // Will be updated in background
+=======
+    // 2. Upload User Audio to Cloudinary
+    const userAudioUpload = await uploadToCloudinary(
+      req.file.path,
+      "htt_hackbits/user_audio",
+    );
+
+    // 3. Detect Sentiment (if not already done for next question logic, do it here for storage)
+    // We need sentiment for the Reel generation later
+    const sentiment = await aiService.detectSentiment(userText);
+
+    // 4. Save User Turn with Sentiment
+    await ConversationTurn.create({
+      sessionId,
+      role: "user",
+      content: userText,
+      audioUrl: userAudioUpload.secure_url,
+      sentiment: sentiment
+>>>>>>> 8370a91 (Update backend controllers (interview, project, testimonial))
     });
 
     // 3. Upload User Audio to Cloudinary in background
@@ -381,7 +401,6 @@ exports.nextTurn = async (req, res) => {
         });
       }
 
-      const sentiment = await aiService.detectSentiment(userText);
       const baseQuestion = baseQuestions[nextIndex];
       nextQText = await aiService.generateFollowupQuestion({
         baseQuestion,
