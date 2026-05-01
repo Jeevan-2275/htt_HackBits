@@ -34,6 +34,7 @@ router.route('/projects/:id')
 router.post('/campaigns/questions', campaignController.generateCampaignQuestions);
 
 // --- Testimonial / Session Management Routes ---
+router.get('/testimonials', protect, testimonialController.getAllTestimonials);
 router.get('/projects/:projectId/testimonials', protect, testimonialController.getTestimonials);
 router.post('/projects/:projectId/process-all-videos', protect, testimonialController.processAllVideos);
 router.get('/testimonials/campaign/:campaignId', protect, testimonialController.getByCampaign);
