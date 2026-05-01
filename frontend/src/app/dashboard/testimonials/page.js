@@ -65,7 +65,71 @@ export default function TestimonialsPage() {
   const [campaigns, setCampaigns] = useState([]);
 
   useEffect(() => {
+<<<<<<< HEAD
     loadCampaigns();
+=======
+    const loadTestimonials = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        /* 
+        // Real API Call (Commented out or used as fallback if we want strict dummy for now? 
+        // User asked for "dummy properly". We will try fetch, but ALWAYS append dummy.
+        // If fetch fails, we just show dummy.
+        */
+        let realData = [];
+        try {
+            if (token) {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/testimonials`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const json = await res.json();
+                    realData = json.data || [];
+                }
+            }
+        } catch (e) {
+            console.warn("Backend fetch failed, using dummy only");
+        }
+
+        // DUMMY DATA FOR DEMO
+        const dummy = [
+          {
+            _id: 'dummy_1',
+            status: 'Completed',
+            customerName: 'Alice Freeman',
+            campaignName: 'Product Launch Feedback',
+            createdAt: new Date().toISOString(),
+            // Using a vertical sample video
+            videoUrl: 'https://res.cloudinary.com/demo/video/upload/v1687513221/docs/makeup.mp4', 
+            rating: 5,
+            quote: "The AI features in this product are absolutely game-changing for our workflow!"
+          },
+          {
+            _id: 'dummy_2',
+            status: 'Completed',
+            customerName: 'David Chen',
+            campaignName: 'Customer Success Stories',
+            createdAt: new Date(Date.now() - 86400000).toISOString(),
+            videoUrl: 'https://res.cloudinary.com/demo/video/upload/v1687513221/docs/makeup.mp4',
+            rating: 5,
+            quote: "I was skeptical at first, but the results speak for themselves. Highly recommended."
+          }
+        ];
+
+        // Combine real and dummy
+        const combined = [...realData, ...dummy];
+        setTestimonials(combined);
+        setFilteredTestimonials(combined);
+
+      } catch (error) {
+        console.error('Failed to load testimonials:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTestimonials();
+>>>>>>> d3aa92c (Update frontend dashboard pages)
   }, []);
 
   useEffect(() => {

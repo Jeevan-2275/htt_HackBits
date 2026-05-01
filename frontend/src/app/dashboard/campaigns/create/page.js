@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import campaignService from '@/lib/campaignService';
 import { generateAIQuestions } from '@/lib/mockApi';
+// import { createCampaign, generateAIQuestions } from '@/lib/mockApi'; 
 import DynamicListInput from '@/components/DynamicListInput';
 
 export default function CreateCampaignPage() {
@@ -98,6 +99,7 @@ export default function CreateCampaignPage() {
     setError('');
 
     try {
+<<<<<<< HEAD
       const campaignPayload = {
         name: formData.campaignName,
         description: formData.productDescription,
@@ -116,6 +118,54 @@ export default function CreateCampaignPage() {
     } catch (err) {
       setError(err.message || 'Failed to create campaign. Please try again.');
       console.error('Campaign creation error:', err);
+=======
+      const selectedQuestions = manualQuestions.length > 0
+        ? manualQuestions
+        : (generatedQuestions.length > 0 ? generatedQuestions : []);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error("You must be logged in to create a campaign");
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/projects`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: formData.campaignName,
+          description: formData.productDescription,
+          questions: selectedQuestions,
+          // Extra fields for QuestionSet creation if needed by backend
+          companyName: formData.companyName,
+          productName: formData.productName || formData.campaignName,
+          feedbackType: formData.feedbackType,
+          companyLogo: formData.companyLogo,
+          // If we already have a questionSetId from generation, we could pass it,
+          // but our backend logic creates a NEW one if 'questions' array is passed.
+          // Since user might have edited, sending 'questions' array is safer.
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create campaign');
+      }
+
+      // Map backend response to what UI expects (id, name, questions)
+      setCreatedCampaign({
+        id: data.data._id,
+        name: data.data.name,
+        questions: selectedQuestions 
+      });
+
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to create campaign. Please try again.');
+>>>>>>> d3aa92c (Update frontend dashboard pages)
     } finally {
       setLoading(false);
     }
