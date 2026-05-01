@@ -141,6 +141,8 @@ const trimClip = (inputPath, startTime, endTime, outputPath) => {
       ])
       .videoFilters([
         "fps=30", // Strict Constant Frame Rate
+        "scale=-1:1920:force_original_aspect_ratio=increase", // Scale height to 1920, maintain AR
+        "crop=1080:1920", // Crop center 1080x1920 (9:16)
         "setpts=PTS-STARTPTS",
       ])
       .audioFilters([

@@ -65,6 +65,10 @@ const ProjectSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    questionSetId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'CampaignQuestionSet'
+    },
     createdAt: {
         type: Date,
         default: Date.now

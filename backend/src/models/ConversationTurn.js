@@ -22,6 +22,11 @@ const ConversationTurnSchema = new mongoose.Schema({
         type: Number, // Offset in the final video recording
         default: 0
     },
+    sentiment: {
+        type: String,
+        enum: ['positive', 'neutral', 'negative'],
+        default: 'neutral'
+    },
     createdAt: {
         type: Date,
         default: Date.now
