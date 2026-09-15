@@ -21,12 +21,11 @@ export default function SignupPage() {
     password: '',
   });
 
-  const industries = ['SaaS', 'E-commerce', 'Healthcare', 'Education', 'Finance', 'Other'];
+  const industries = ['SaaS / AI', 'E-commerce & Retail', 'Healthcare & Biotech', 'Education / EdTech', 'FinTech & Banking', 'Agency / Consulting', 'Other'];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -55,15 +54,15 @@ export default function SignupPage() {
     }
 
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Work email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email format';
+      newErrors.email = 'Invalid email address format';
     }
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = 'Must be at least 6 characters';
     }
 
     setErrors(newErrors);
@@ -85,13 +84,12 @@ export default function SignupPage() {
         );
 
         if (result.success) {
-          // Redirect to dashboard on successful registration
           router.push('/dashboard');
         } else {
           setServerError(result.error || 'Registration failed');
         }
       } catch (err) {
-        setServerError('An error occurred. Please try again.');
+        setServerError('An error occurred during registration. Please try again.');
         console.error('Signup error:', err);
       } finally {
         setLoading(false);
@@ -100,143 +98,195 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Background Gradient Blobs */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-      <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-2000"></div>
-      <div className="absolute -bottom-8 left-20 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse delay-4000"></div>
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Ambient Refraction Glows */}
+      <div className="absolute top-1/3 right-1/4 w-[500px] h-[500px] bg-purple-600/15 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute bottom-1/4 left-1/4 w-[450px] h-[450px] bg-cyan-500/15 rounded-full blur-3xl pointer-events-none"></div>
 
-      <div className="max-w-md w-full relative z-10">
-        {/* Form Card */}
-        <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-8 shadow-2xl shadow-cyan-900/20">
-          {/* Title */}
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent mb-2">Create Your Feedspace Account</h1>
-          <p className="text-slate-400 text-sm mb-6">Get started collecting customer feedback in minutes</p>
+      <div className="max-w-xl w-full relative z-10">
+        {/* Brand Header */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center gap-3 group">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-400 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30 border border-white/25 group-hover:scale-105 transition-transform duration-250">
+              <span className="text-white font-extrabold text-xl">F</span>
+            </div>
+            <span className="text-2xl font-extrabold text-white tracking-tight">
+              Feedspace<span className="text-cyan-400">.ai</span>
+            </span>
+          </Link>
+        </div>
+
+        {/* Frosted Glassmorphism Card */}
+        <div className="glass-morphism rounded-3xl p-8 sm:p-10 shadow-2xl relative overflow-hidden">
+          {/* Top Specular Glare Accent */}
+          <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent"></div>
+
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                Start Your AI Video Engine
+              </h1>
+              <p className="text-slate-400 text-sm mt-1">
+                Collect, transcribe, and edit viral reels automatically
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full text-xs font-semibold glass-pill text-emerald-300 border border-emerald-500/30">
+              Free 14-Day Pro
+            </span>
+          </div>
 
           {/* Server Error Message */}
           {serverError && (
-            <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm">
-              {serverError}
+            <div className="mb-6 p-3.5 bg-red-500/15 border border-red-500/40 rounded-xl text-red-300 text-sm flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <span>{serverError}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Full Name */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Full Name *</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-cyan-500/50 transition duration-300 focus:bg-slate-800"
-                placeholder="John Doe"
-              />
-              {errors.name && <p className="text-red-400 text-sm mt-1">{errors.name}</p>}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Full Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 glass-input rounded-xl text-slate-100 placeholder-slate-500 text-sm"
+                  placeholder="Sarah Connor"
+                />
+                {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
+              </div>
+
+              {/* Company Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Company Name *
+                </label>
+                <input
+                  type="text"
+                  name="companyName"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 glass-input rounded-xl text-slate-100 placeholder-slate-500 text-sm"
+                  placeholder="Acme Technologies"
+                />
+                {errors.companyName && <p className="text-red-400 text-xs mt-1">{errors.companyName}</p>}
+              </div>
             </div>
 
-            {/* Company Name */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Company Name *</label>
-              <input
-                type="text"
-                name="companyName"
-                value={formData.companyName}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-cyan-500/50 transition duration-300 focus:bg-slate-800"
-                placeholder="Acme Corp"
-              />
-              {errors.companyName && <p className="text-red-400 text-sm mt-1">{errors.companyName}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Industry */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Industry *
+                </label>
+                <select
+                  name="industry"
+                  value={formData.industry}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 glass-input rounded-xl text-slate-100 text-sm cursor-pointer"
+                >
+                  <option value="" className="bg-slate-900 text-slate-400">Select Industry</option>
+                  {industries.map((ind) => (
+                    <option key={ind} value={ind} className="bg-slate-900 text-slate-100">
+                      {ind}
+                    </option>
+                  ))}
+                </select>
+                {errors.industry && <p className="text-red-400 text-xs mt-1">{errors.industry}</p>}
+              </div>
+
+              {/* Work Email */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Work Email *
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 glass-input rounded-xl text-slate-100 placeholder-slate-500 text-sm"
+                  placeholder="sarah@acme.com"
+                />
+                {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+              </div>
             </div>
 
-            {/* Industry */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Industry *</label>
-              <select
-                name="industry"
-                value={formData.industry}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-cyan-500/50 transition duration-300 cursor-pointer focus:bg-slate-800"
-              >
-                <option value="">Select your industry</option>
-                {industries.map((ind) => (
-                  <option key={ind} value={ind}>
-                    {ind}
-                  </option>
-                ))}
-              </select>
-              {errors.industry && <p className="text-red-400 text-sm mt-1">{errors.industry}</p>}
-            </div>
-
-            {/* Custom Industry (shown when "Other" is selected) */}
+            {/* Custom Industry (conditional) */}
             {formData.industry === 'Other' && (
-              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="block text-sm font-medium text-slate-300 mb-2">Specify Your Industry *</label>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Specify Industry *
+                </label>
                 <input
                   type="text"
                   name="customIndustry"
                   value={formData.customIndustry}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-cyan-500/50 transition duration-300 focus:bg-slate-800"
-                  placeholder="Enter your industry"
+                  className="w-full px-4 py-3 glass-input rounded-xl text-slate-100 placeholder-slate-500 text-sm"
+                  placeholder="e.g. Clean Energy"
                 />
-                {errors.customIndustry && <p className="text-red-400 text-sm mt-1">{errors.customIndustry}</p>}
+                {errors.customIndustry && <p className="text-red-400 text-xs mt-1">{errors.customIndustry}</p>}
               </div>
             )}
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Contact Email *</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-cyan-500/50 transition duration-300 focus:bg-slate-800"
-                placeholder="you@company.com"
-              />
-              {errors.email && <p className="text-red-400 text-sm mt-1">{errors.email}</p>}
-            </div>
-
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Password *</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                Password (min. 6 characters) *
+              </label>
               <input
                 type="password"
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-cyan-500/50 transition duration-300 focus:bg-slate-800"
-                placeholder="Create a strong password"
+                className="w-full px-4 py-3 glass-input rounded-xl text-slate-100 placeholder-slate-500 text-sm"
+                placeholder="••••••••••••"
               />
-              {errors.password && <p className="text-red-400 text-sm mt-1">{errors.password}</p>}
+              {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
             </div>
 
             {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/40 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition duration-300 mt-6 transform active:scale-95"
+              className="w-full py-3.5 mt-4 rounded-xl glass-btn-primary text-white font-bold text-sm tracking-wide transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
             >
-              {loading ? 'Creating Account...' : 'Create Account'}
+              {loading ? 'Creating Enterprise Account...' : 'Create Account & Launch Studio →'}
             </button>
           </form>
 
           {/* Login Link */}
-          <div className="mt-6 text-center">
-            <p className="text-slate-400 text-sm">
+          <div className="mt-6 text-center border-t border-white/10 pt-5">
+            <p className="text-slate-400 text-xs">
               Already have an account?{' '}
-              <Link href="/login" className="text-blue-400 hover:text-blue-300 font-medium transition duration-300">
-                Login
+              <Link href="/login" className="text-cyan-400 hover:text-cyan-300 font-semibold transition">
+                Sign In
               </Link>
             </p>
           </div>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-slate-500 text-sm mt-6">
-          By creating an account, you agree to our Terms of Service
-        </p>
+        {/* Pro Tier Inclusions */}
+        <div className="mt-6 glass-pill p-4 rounded-2xl flex flex-wrap items-center justify-between text-xs text-slate-400 gap-3 border border-white/10">
+          <div className="flex items-center gap-1.5 text-slate-300">
+            <span className="text-emerald-400 font-bold">✓</span>
+            <span>Groq LLaMA 3.3 70B</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-slate-300">
+            <span className="text-emerald-400 font-bold">✓</span>
+            <span>Free Edge TTS Neural Audio</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-slate-300">
+            <span className="text-emerald-400 font-bold">✓</span>
+            <span>Unlimited 9:16 FFmpeg Reels</span>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -13,20 +13,22 @@ export default function Footer() {
   }
 
   return (
-    <footer className="bg-slate-900 text-slate-400 border-t border-white/10/50">
+    <footer className="bg-slate-950 text-slate-400 border-t border-white/10 relative z-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Footer Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
           {/* Brand */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
-                <span className="text-white font-bold text-lg">F</span>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-tr from-cyan-400 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/30">
+                <span className="text-white font-extrabold text-lg">F</span>
               </div>
-              <span className="font-bold text-lg text-slate-100">Feedspace</span>
+              <span className="font-heading font-extrabold text-xl text-white tracking-tight">
+                Feedspace <span className="text-xs text-purple-400 font-bold bg-purple-500/20 px-1.5 py-0.5 rounded border border-purple-500/30">AI</span>
+              </span>
             </div>
-            <p className="text-sm text-slate-500">
-              Transform customer stories into powerful marketing assets with AI.
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Transform authentic customer stories into viral 9:16 vertical video reels automatically with AI transcription and viral hook highlights.
             </p>
           </div>
 
@@ -108,7 +110,7 @@ export default function Footer() {
         </div>
 
         {/* Divider */}
-        <div className="border-t border-white/10/50 pt-8">
+        <div className="border-t border-white/10 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             {/* Copyright */}
             <p className="text-sm text-slate-500">

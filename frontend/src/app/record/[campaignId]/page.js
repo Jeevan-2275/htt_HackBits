@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import campaignService from '@/lib/campaignService';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
 export default function RecordPage() {
   const params = useParams();
   const router = useRouter();
@@ -123,7 +125,7 @@ export default function RecordPage() {
     const fetchVoices = async () => {
       try {
         console.log("[TTS] Fetching available voices from backend...");
-        const response = await fetch("http://localhost:5000/api/voice/voices");
+        const response = await fetch(`${API_URL}/voice/voices`);
         if (response.ok) {
           const data = await response.json();
           if (data.voices && Object.keys(data.voices).length > 0) {
@@ -333,7 +335,7 @@ export default function RecordPage() {
       formData.append("audio", audioBlob, "answer.webm");
       formData.append("withTimestamps", "false");
 
-      const response = await fetch("http://localhost:5000/api/voice/stt", {
+      const response = await fetch(`${API_URL}/voice/stt`, {
         method: "POST",
         body: formData,
       });
@@ -395,17 +397,24 @@ export default function RecordPage() {
     try {
       const formData = new FormData();
       formData.append("video", videoBlob, "session.webm");
-
-      let url = "http://localhost:5000/api/jobs/create";
+      if (campaignId) {
+        formData.append("campaignId", campaignId);
+      }
+      if (customerName) {
+        formData.append("userName", customerName);
+      }
       if (sessionId) {
         formData.append("sessionId", sessionId);
-        url = "http://localhost:5000/api/video/upload";
       }
+
+      const url = `${API_URL}/video/upload`;
 
       console.log(
         `%c[UPLOAD] 📤 Uploading video to ${url}...`,
         "color: #9C27B0; font-weight: bold;",
         {
+          campaignId,
+          userName: customerName,
           sessionId: sessionId || "New Session",
           blobSize: `${(videoBlob.size / 1024 / 1024).toFixed(2)} MB`,
         },
@@ -427,8 +436,16 @@ export default function RecordPage() {
         throw new Error(data.error || "Failed to upload video");
       }
 
+      const uploadJson = await response.json();
+      if (uploadJson.testimonial && uploadJson.testimonial._id) {
+        setTestimonialId(uploadJson.testimonial._id);
+      }
+      if (uploadJson.sessionId && !sessionId) {
+        setSessionId(uploadJson.sessionId);
+      }
+
       console.log(
-        "%c[UPLOAD] ✅ VIDEO SUCCESSFULLY STORED IN CLOUDINARY",
+        "%c[UPLOAD] ✅ VIDEO SUCCESSFULLY STORED & TESTIMONIAL CREATED",
         "color: #4CAF50; font-weight: bold;",
       );
 
@@ -440,7 +457,7 @@ export default function RecordPage() {
         );
 
         // 1. Kick off highlights, transcription and reel generation
-        fetch("http://localhost:5000/api/process/highlights", {
+        fetch(`${API_URL}/process/highlights`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId }),
@@ -455,7 +472,7 @@ export default function RecordPage() {
 
         // 2. The user also explicitly asked for api/process/reel (though highlights usually does it)
         // We trigger it here just in case or if they want to ensure it runs
-        fetch("http://localhost:5000/api/process/reel", {
+        fetch(`${API_URL}/process/reel`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId }),
@@ -480,7 +497,7 @@ export default function RecordPage() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:5000/api/session/start", {
+      const response = await fetch(`${API_URL}/session/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ questionSetId: campaign.questionSetId }),
@@ -526,7 +543,7 @@ export default function RecordPage() {
       formData.append("audio", audioBlob, "answer.webm");
 
       const response = await fetch(
-        "http://localhost:5000/api/conversation/next",
+        `${API_URL}/conversation/next`,
         {
           method: "POST",
           body: formData,
@@ -971,13 +988,13 @@ return (
     {step === "welcome" && (
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
         <div className="max-w-2xl w-full animate-fadeIn">
-          <div className="glass rounded-3xl p-12 text-center shadow-2xl shadow-purple-500/20">
+          <div className="glass-morphism rounded-3xl p-10 md:p-12 text-center shadow-2xl">
             {/* Avatar */}
-            <div className="relative w-32 h-32 mx-auto mb-8">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full blur-2xl opacity-40 animate-pulse"></div>
-              <div className="relative w-32 h-32 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl shadow-purple-500/50 border border-white/10">
+            <div className="relative w-28 h-28 mx-auto mb-8">
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full blur-2xl opacity-50 animate-pulse"></div>
+              <div className="relative w-28 h-28 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl border border-white/20">
                 <svg
-                  className="w-16 h-16 text-white"
+                  className="w-14 h-14 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -992,33 +1009,36 @@ return (
               </div>
             </div>
 
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-3">
-              Hey bud! 👋
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-pill text-xs font-semibold text-cyan-400 mb-3">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              AI Studio Video Recorder
+            </div>
+            <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-3 font-heading tracking-tight">
+              Hey there! 👋
             </h1>
-            <p className="text-white/70 text-xl mb-8 max-w-xl mx-auto">
-              I'm your friend, and I'm here to help you share your thoughts on{" "}
-              {campaign.name}. Let's have a quick chat!
+            <p className="text-white/70 text-lg mb-8 max-w-xl mx-auto">
+              I'm your AI host, and I'll guide you through sharing authentic thoughts on{" "}
+              <span className="text-cyan-400 font-semibold">{campaign.name}</span>.
             </p>
 
             {/* Campaign Details */}
-            <div className="glass-sm border border-white/10 rounded-2xl p-6 mb-8 text-left bg-white/5">
-              <p className="text-white/60 text-sm mb-2">Recording for</p>
-              <h2 className="text-2xl font-bold text-white mb-4">
+            <div className="glass-pill rounded-2xl p-6 mb-8 text-left border border-white/12">
+              <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Recording for</p>
+              <h2 className="text-xl font-bold text-white mb-3">
                 {campaign.name}
               </h2>
               <div className="flex gap-4 text-white/70 text-sm">
-                <span>📝 {campaign.questions.length} questions</span>
-                <span>
-                  ⏱️ ~{Math.ceil((campaign.questions.length * 60) / 2)}{" "}
-                  seconds
+                <span className="flex items-center gap-1.5">📝 {campaign.questions.length} questions</span>
+                <span className="flex items-center gap-1.5">
+                  ⏱️ ~{Math.ceil((campaign.questions.length * 60) / 2)} seconds
                 </span>
               </div>
             </div>
 
             {/* Name Input */}
-            <div className="mb-8">
-              <label className="block text-white/70 text-sm font-medium mb-3">
-                What's your name?
+            <div className="mb-6 text-left">
+              <label className="block text-white/80 text-sm font-medium mb-2.5">
+                What's your name? *
               </label>
               <input
                 type="text"
@@ -1029,16 +1049,16 @@ return (
                   customerName.trim() &&
                   setStep("question")
                 }
-                placeholder="John Smith"
+                placeholder="e.g., Alex Johnson"
                 autoFocus
-                className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-white/20 transition duration-300 text-lg"
+                className="w-full px-5 py-3.5 glass-input rounded-xl text-white placeholder-white/40 focus:outline-none transition text-base"
               />
             </div>
 
             {/* Voice Selector */}
-            <div className="mb-8">
-              <label className="block text-white/70 text-sm font-medium mb-3">
-                Select AI Voice
+            <div className="mb-8 text-left">
+              <label className="block text-white/80 text-sm font-medium mb-2.5">
+                Select AI Host Voice
               </label>
               <select
                 value={selectedVoice}
@@ -1046,13 +1066,10 @@ return (
                   setSelectedVoice(e.target.value);
                   console.log("[TTS] Voice selected:", e.target.value);
                 }}
-                className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-white/20 transition duration-300 text-lg"
-                style={{
-                  colorScheme: "light",
-                }}
+                className="w-full px-5 py-3.5 glass-input rounded-xl text-white focus:outline-none transition text-base cursor-pointer"
               >
                 <option
-                  style={{ color: "black", backgroundColor: "white" }}
+                  className="bg-slate-900 text-white"
                   value=""
                 >
                   -- Select a voice --
@@ -1061,13 +1078,13 @@ return (
                   <optgroup
                     key={language}
                     label={language}
-                    style={{ color: "black" }}
+                    className="bg-slate-900 text-white/80 font-bold"
                   >
                     {voices.map((voice) => (
                       <option
                         key={voice}
                         value={voice}
-                        style={{ color: "black", backgroundColor: "white" }}
+                        className="bg-slate-900 text-white"
                       >
                         {voice.replace(/-/g, " ")}
                       </option>
@@ -1075,17 +1092,17 @@ return (
                   </optgroup>
                 ))}
               </select>
-              <p className="text-white/50 text-xs mt-2">
-                💡 Unlimited AI voices powered by Microsoft Edge TTS (FREE)
+              <p className="text-white/40 text-xs mt-2">
+                💡 Powered by Neural Text-to-Speech
               </p>
             </div>
 
             <button
               onClick={() => customerName.trim() && setStep("question")}
               disabled={!customerName.trim()}
-              className="w-full px-8 py-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 cursor-pointer"
+              className="w-full px-8 py-4 glass-btn-primary text-white font-bold text-lg rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Let's Talk!
+              Start Video Experience →
             </button>
           </div>
         </div>
@@ -1096,15 +1113,15 @@ return (
     {step === "question" && (
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
         <div className="max-w-2xl w-full animate-fadeIn">
-          <div className="glass rounded-3xl p-12 shadow-2xl shadow-purple-500/20">
+          <div className="glass-morphism rounded-3xl p-10 md:p-12 shadow-2xl">
             {/* Progress Bar */}
-            <div className="mb-12">
+            <div className="mb-10">
               <div className="flex justify-between items-center mb-3">
-                <span className="text-white/70 text-sm">
+                <span className="text-white/70 text-sm font-medium">
                   Question {currentQuestionIndex + 1} of{" "}
                   {campaign.questions.length}
                 </span>
-                <span className="text-white/70 text-sm">
+                <span className="text-cyan-400 text-sm font-bold">
                   {Math.round(
                     ((currentQuestionIndex + 1) / campaign.questions.length) *
                     100,
@@ -1112,9 +1129,9 @@ return (
                   %
                 </span>
               </div>
-              <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 transition-all duration-300"
+                  className="h-full bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 transition-all duration-300"
                   style={{
                     width: `${((currentQuestionIndex + 1) / campaign.questions.length) * 100}%`,
                   }}
@@ -1123,16 +1140,16 @@ return (
             </div>
 
             {/* AI Avatar */}
-            <div className="flex justify-center mb-10">
+            <div className="flex justify-center mb-8">
               <div className="relative">
                 <div
-                  className={`absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full blur-2xl opacity-40 ${aiSpeaking ? "animate-pulse" : ""}`}
+                  className={`absolute inset-0 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full blur-2xl opacity-50 ${aiSpeaking ? "animate-pulse" : ""}`}
                 ></div>
                 <div
-                  className={`relative w-28 h-28 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl shadow-purple-500/50 border border-white/10 ${aiSpeaking ? "animate-pulse" : ""}`}
+                  className={`relative w-24 h-24 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl border border-white/20 ${aiSpeaking ? "animate-pulse" : ""}`}
                 >
                   <svg
-                    className="w-14 h-14 text-white"
+                    className="w-12 h-12 text-white"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -1149,15 +1166,16 @@ return (
             </div>
 
             {/* Question Text - Always Display */}
-            <div className="text-center mb-10">
-              <div className="mb-3">
+            <div className="text-center mb-8">
+              <div className="mb-4">
                 <span
-                  className={`inline-block px-4 py-2 rounded-full text-sm font-medium ${aiSpeaking ? "bg-green-500/20 text-green-300 border border-green-500/50" : "bg-blue-500/20 text-blue-300 border border-blue-500/50"}`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${aiSpeaking ? "glass-pill text-emerald-400 border-emerald-500/30" : "glass-pill text-cyan-300 border-cyan-500/30"}`}
                 >
-                  {aiSpeaking ? "🎙️ AI is speaking" : "👂 Ready to listen"}
+                  <span className={`w-2 h-2 rounded-full ${aiSpeaking ? "bg-emerald-400 animate-ping" : "bg-cyan-400"}`}></span>
+                  {aiSpeaking ? "🎙️ AI is speaking" : "👂 Listening ready"}
                 </span>
               </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-white leading-relaxed">
+              <h2 className="text-2xl md:text-3xl font-bold text-white leading-snug">
                 {isUsingBackendQuestions
                   ? currentQuestionText || "Preparing your question..."
                   : campaign.questions[currentQuestionIndex]}
@@ -1165,31 +1183,29 @@ return (
             </div>
 
             {ttsLoading && (
-              <div className="glass-sm bg-white/5 border border-white/10 rounded-xl p-4 mb-6 text-center">
-                <p className="text-white/70 text-sm">
-                  🎙️ AI is generating voice...
+              <div className="glass-pill rounded-xl p-3.5 mb-6 text-center">
+                <p className="text-white/70 text-xs flex items-center justify-center gap-2">
+                  <span className="animate-spin">🎙️</span> Synthesizing voice audio...
                 </p>
               </div>
             )}
 
             {/* Tip */}
-            <div className="glass-sm bg-blue-500/10 border border-blue-500/30 rounded-xl p-5 mb-8 text-center">
-              <p className="text-blue-300 text-sm">
-                💡 Speak naturally for 30-90 seconds. Recording will start
-                automatically!
+            <div className="glass-pill rounded-xl p-4 mb-6 text-center border-cyan-500/20 bg-cyan-500/5">
+              <p className="text-cyan-300 text-xs">
+                💡 Speak naturally for 30-60 seconds. Video reel recording will start automatically.
               </p>
             </div>
 
             {error && (
-              <div className="glass-sm bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-8">
-                <p className="text-red-300 text-sm">{error}</p>
+              <div className="glass-pill rounded-xl p-3.5 mb-6 text-center border-red-500/30 bg-red-500/10">
+                <p className="text-red-300 text-xs">{error}</p>
               </div>
             )}
 
-            <div className="w-full px-8 py-4 text-center">
-              <p className="text-white/70 text-base font-medium">
-                ⏱️ Recording will start automatically after the question is
-                read
+            <div className="w-full text-center">
+              <p className="text-white/60 text-xs">
+                ⏱️ Recording will initiate automatically as soon as the prompt finishes.
               </p>
             </div>
           </div>
@@ -1201,7 +1217,7 @@ return (
     {step === "recording" && (
       <div className="relative z-10 h-screen flex flex-col animate-fadeIn">
         {/* Top Bar - Question & Timer */}
-        <div className="glass-sm border-b border-white/10 px-6 py-4 flex items-center justify-between">
+        <div className="glass-dock px-6 py-4 flex items-center justify-between">
           <div className="flex-1 flex items-center gap-4">
             {/* Play Audio Button */}
             <button
@@ -1218,11 +1234,11 @@ return (
                 }
               }}
               disabled={ttsLoading}
-              className="flex-shrink-0 p-3 rounded-lg bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-shrink-0 p-3 rounded-xl glass-btn text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               title="Play question audio"
             >
               <svg
-                className="w-5 h-5 text-white"
+                className="w-4 h-4 text-white"
                 fill="currentColor"
                 viewBox="0 0 24 24"
               >
@@ -1231,10 +1247,10 @@ return (
             </button>
 
             <div className="flex-1">
-              <p className="text-white/70 text-sm font-medium">
+              <p className="text-white/50 text-xs font-semibold uppercase tracking-wider">
                 Current Question
               </p>
-              <h3 className="text-white text-lg font-bold">
+              <h3 className="text-white text-base md:text-lg font-bold">
                 {isUsingBackendQuestions
                   ? currentQuestionText || "..."
                   : campaign.questions[currentQuestionIndex]}
@@ -1243,37 +1259,37 @@ return (
           </div>
 
           {/* Timer */}
-          <div className="flex items-center gap-2 glass-sm px-5 py-3 rounded-2xl border border-white/10 ml-6 flex-shrink-0">
+          <div className="flex items-center gap-2 glass-pill px-4 py-2 rounded-xl ml-6 flex-shrink-0">
             <div
-              className={`w-2 h-2 ${isRecording ? "bg-red-500 animate-pulse" : "bg-slate-600"} rounded-full`}
+              className={`w-2 h-2 ${isRecording ? "bg-red-500 animate-pulse" : "bg-slate-500"} rounded-full`}
             ></div>
-            <span className="text-white font-mono font-bold text-lg">
+            <span className="text-white font-mono font-bold text-sm">
               {formatTime(recordingTime)}
             </span>
           </div>
         </div>
 
         {/* Main Content - Split Layout */}
-        <div className="flex-1 flex gap-4 p-6 overflow-hidden">
+        <div className="flex-1 flex gap-6 p-6 overflow-hidden">
           {/* Left - AI Interviewer */}
           <div className="w-1/2 flex flex-col items-center justify-center">
             <div className="text-center mb-8">
-              <div className="relative w-48 h-48 mx-auto mb-6">
+              <div className="relative w-40 h-40 mx-auto mb-6">
                 <div
-                  className={`absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full blur-3xl ${aiSpeaking ? "animate-pulse" : "opacity-40"}`}
+                  className={`absolute inset-0 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full blur-3xl ${aiSpeaking ? "animate-pulse" : "opacity-40"}`}
                 ></div>
                 <div
-                  className={`relative w-48 h-48 bg-gradient-to-r from-blue-400/20 via-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center backdrop-blur-xl border-2 border-white/20 shadow-2xl shadow-purple-500/30 ${aiSpeaking ? "animate-pulse" : ""}`}
+                  className={`relative w-40 h-40 glass-morphism rounded-full flex items-center justify-center border-2 border-white/20 shadow-2xl ${aiSpeaking ? "animate-pulse" : ""}`}
                 >
                   {campaign.companyLogo ? (
                     <img
                       src={campaign.companyLogo}
                       alt={campaign.companyName || "Company Logo"}
-                      className="w-40 h-40 object-contain rounded-full"
+                      className="w-32 h-32 object-contain rounded-full"
                     />
                   ) : (
                     <svg
-                      className="w-24 h-24 text-white"
+                      className="w-20 h-20 text-white/90"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -1290,9 +1306,9 @@ return (
               </div>
 
               {/* Company Info */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {campaign.companyName && (
-                  <p className="text-white text-lg font-bold">
+                  <p className="text-white text-lg font-extrabold font-heading">
                     {campaign.companyName}
                   </p>
                 )}
@@ -1302,16 +1318,16 @@ return (
                   </p>
                 )}
                 {campaign.feedbackType && (
-                  <p className="text-blue-300/80 text-xs font-medium bg-blue-500/10 px-3 py-1 rounded-full inline-block mt-2">
+                  <span className="glass-pill text-cyan-300 text-xs font-semibold px-3 py-1 rounded-full inline-block mt-2">
                     {campaign.feedbackType}
-                  </p>
+                  </span>
                 )}
               </div>
 
               {aiSpeaking && (
                 <div className="mt-4 flex items-center justify-center gap-1">
                   <div
-                    className="w-1 h-4 bg-blue-400 rounded-full animate-pulse"
+                    className="w-1 h-4 bg-cyan-400 rounded-full animate-pulse"
                     style={{ animationDelay: "0ms" }}
                   ></div>
                   <div
@@ -1329,8 +1345,8 @@ return (
 
           {/* Right - User Camera */}
           <div className="w-1/2 flex items-center justify-center overflow-hidden">
-            <div className="relative w-full h-full rounded-2xl overflow-hidden bg-black border-2 border-white/20 shadow-2xl shadow-purple-500/20">
-              {/* Video Element - Must be absolute and higher z-index than overlays */}
+            <div className="relative w-full h-full rounded-2xl overflow-hidden glass-morphism border-2 border-white/20 shadow-2xl">
+              {/* Video Element */}
               <video
                 ref={videoRef}
                 autoPlay={true}
@@ -1339,22 +1355,22 @@ return (
                 className="absolute inset-0 w-full h-full object-cover z-20 rounded-2xl"
               />
 
-              {/* Recording Indicator - Below video */}
+              {/* Recording Indicator */}
               {stream && (
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full border border-red-500/50 z-30 backdrop-blur-sm">
+                <div className="absolute top-4 left-4 flex items-center gap-2 glass-pill px-3.5 py-1.5 rounded-full z-30 border-red-500/40">
                   <div className="relative w-2 h-2">
                     <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
                     <div className="absolute inset-0 w-2 h-2 bg-red-500 rounded-full animate-ping"></div>
                   </div>
                   <span className="text-red-400 font-bold text-xs">
-                    RECORDING
+                    REC
                   </span>
                 </div>
               )}
 
-              {/* User Label - Below video */}
+              {/* User Label */}
               {stream && (
-                <div className="absolute top-4 right-4 text-white/70 text-sm font-medium z-30 bg-black/50 px-3 py-1 rounded-full">
+                <div className="absolute top-4 right-4 text-white/80 text-xs font-semibold z-30 glass-pill px-3 py-1.5 rounded-full">
                   {customerName}
                 </div>
               )}
@@ -1364,7 +1380,7 @@ return (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 rounded-2xl">
                   <div className="text-center">
                     <svg
-                      className="w-16 h-16 text-white/40 mx-auto mb-3"
+                      className="w-14 h-14 text-white/40 mx-auto mb-3"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -1377,7 +1393,7 @@ return (
                       />
                     </svg>
                     <p className="text-white/60 text-sm">
-                      Click "Start Recording" to begin
+                      Initializing camera hardware...
                     </p>
                   </div>
                 </div>
@@ -1387,9 +1403,9 @@ return (
         </div>
 
         {lastTranscript && (
-          <div className="px-6 pb-6">
-            <div className="glass-sm bg-white/5 border border-white/10 rounded-xl p-4">
-              <p className="text-white/60 text-xs mb-2">
+          <div className="px-6 pb-4">
+            <div className="glass-pill rounded-xl p-3 border border-white/10">
+              <p className="text-white/50 text-xs uppercase tracking-wider mb-1">
                 Last response (transcribed)
               </p>
               <p className="text-white/80 text-sm">{lastTranscript}</p>
@@ -1398,39 +1414,39 @@ return (
         )}
 
         {/* Bottom Controls */}
-        <div className="glass-sm border-t border-white/10 px-6 py-4 flex items-center justify-center gap-4">
+        <div className="glass-dock px-6 py-4 flex items-center justify-center gap-4">
           {/* Status Display */}
           <div className="flex-1 text-center">
             {!isRecording ? (
               <div className="flex items-center justify-center gap-2">
-                <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-                <p className="text-white/70 text-sm">
+                <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-pulse"></div>
+                <p className="text-white/70 text-xs md:text-sm">
                   Waiting for next question...
                 </p>
               </div>
             ) : (
               <div className="flex items-center justify-center gap-2">
-                <div className="relative w-3 h-3">
+                <div className="relative w-2.5 h-2.5">
                   <div className="absolute inset-0 bg-red-500 rounded-full animate-pulse"></div>
                   <div className="absolute inset-1 border-2 border-red-500 rounded-full animate-ping"></div>
                 </div>
-                <p className="text-red-400 text-sm font-medium">
-                  Recording... (Auto-stops after silence)
+                <p className="text-red-400 text-xs md:text-sm font-semibold">
+                  Recording Reel... (Auto-stops after silence or finish)
                 </p>
               </div>
             )}
           </div>
 
-          {/* Mute Button (kept for user control) */}
+          {/* Mute Button */}
           <button
             onClick={() => setIsMuted(!isMuted)}
-            className={`p-4 rounded-full transition-all duration-300 flex-shrink-0 ${isMuted
-              ? "bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30"
-              : "glass-sm border border-white/10 text-white/70 hover:bg-white/10"
+            className={`p-3.5 rounded-full transition cursor-pointer flex-shrink-0 ${isMuted
+              ? "bg-red-500/20 border border-red-500/50 text-red-400"
+              : "glass-btn text-white/80"
               }`}
             title={isMuted ? "Unmute microphone" : "Mute microphone"}
           >
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               {isMuted ? (
                 <path d="M13.5 4.06c0-1.336-1.616-2.256-2.73-1.72l-5.24 2.97A4 4 0 005 9.073V15a4 4 0 004 4h.5m7.07-6.649l2.905 2.905M19 13a7 7 0 11-14 0 7 7 0 0114 0z" />
               ) : (
@@ -1439,14 +1455,14 @@ return (
             </svg>
           </button>
 
-          {/* Exit Button (emergency) */}
+          {/* Exit Button */}
           <button
             onClick={cancelRecording}
-            className="p-4 rounded-full glass-sm border border-white/10 text-white/70 hover:bg-white/10 transition-all duration-300 cursor-pointer flex-shrink-0"
+            className="p-3.5 rounded-full glass-btn text-white/80 transition cursor-pointer flex-shrink-0"
             title="Exit interview"
           >
             <svg
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1467,13 +1483,13 @@ return (
     {step === "completed" && (
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
         <div className="max-w-2xl w-full animate-fadeIn">
-          <div className="glass rounded-3xl p-12 shadow-2xl shadow-emerald-500/20 text-center">
+          <div className="glass-morphism rounded-3xl p-10 md:p-12 shadow-2xl text-center">
             {/* Success Icon */}
-            <div className="relative w-32 h-32 mx-auto mb-8">
-              <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full opacity-30 blur-3xl animate-pulse"></div>
-              <div className="relative w-32 h-32 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center shadow-2xl shadow-emerald-500/40 border border-white/10">
+            <div className="relative w-28 h-28 mx-auto mb-8">
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-cyan-500 rounded-full opacity-40 blur-3xl animate-pulse"></div>
+              <div className="relative w-28 h-28 bg-gradient-to-r from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center shadow-2xl border border-white/20">
                 <svg
-                  className="w-16 h-16 text-white"
+                  className="w-14 h-14 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1488,18 +1504,21 @@ return (
               </div>
             </div>
 
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-pill text-xs font-semibold text-emerald-400 mb-3">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Interview Complete
+            </div>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-4 font-heading tracking-tight">
               Perfect! 🎉
             </h2>
-            <p className="text-white/70 text-xl mb-8 max-w-md mx-auto">
-              Thank you {customerName}! Your interview has been recorded and
-              is being processed.
+            <p className="text-white/70 text-lg mb-8 max-w-md mx-auto">
+              Thank you {customerName}! Your video responses have been captured and converted into an AI reel.
             </p>
 
             <div className="space-y-3">
               <button
                 onClick={() => router.push("/dashboard")}
-                className="w-full px-8 py-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 transform hover:scale-105 cursor-pointer"
+                className="w-full px-8 py-4 glass-btn-primary text-white font-bold text-lg rounded-xl transition cursor-pointer"
               >
                 Go to Dashboard
               </button>
@@ -1513,7 +1532,7 @@ return (
                   sessionRecorderRef.current = null;
                   setCustomerName("");
                 }}
-                className="w-full px-8 py-3 glass-sm border border-white/10 text-white font-medium rounded-xl hover:bg-white/5 transition-all duration-300 cursor-pointer"
+                className="w-full px-8 py-3.5 glass-btn text-white font-medium rounded-xl transition cursor-pointer"
               >
                 Record Another Interview
               </button>

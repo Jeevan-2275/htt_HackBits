@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import authService from '@/lib/authService';
+import ReelStudioModal from '@/components/ReelStudioModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -63,73 +65,13 @@ export default function TestimonialsPage() {
   const [error, setError] = useState(null);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
+  const [selectedTestimonialForStudio, setSelectedTestimonialForStudio] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+  const [showEmbedModal, setShowEmbedModal] = useState(false);
+  const [wallCopied, setWallCopied] = useState(false);
 
   useEffect(() => {
-<<<<<<< HEAD
     loadCampaigns();
-=======
-    const loadTestimonials = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        /* 
-        // Real API Call (Commented out or used as fallback if we want strict dummy for now? 
-        // User asked for "dummy properly". We will try fetch, but ALWAYS append dummy.
-        // If fetch fails, we just show dummy.
-        */
-        let realData = [];
-        try {
-            if (token) {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/testimonials`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (res.ok) {
-                    const json = await res.json();
-                    realData = json.data || [];
-                }
-            }
-        } catch (e) {
-            console.warn("Backend fetch failed, using dummy only");
-        }
-
-        // DUMMY DATA FOR DEMO
-        const dummy = [
-          {
-            _id: 'dummy_1',
-            status: 'Completed',
-            customerName: 'Alice Freeman',
-            campaignName: 'Product Launch Feedback',
-            createdAt: new Date().toISOString(),
-            // Using a vertical sample video
-            videoUrl: 'https://res.cloudinary.com/demo/video/upload/v1687513221/docs/makeup.mp4', 
-            rating: 5,
-            quote: "The AI features in this product are absolutely game-changing for our workflow!"
-          },
-          {
-            _id: 'dummy_2',
-            status: 'Completed',
-            customerName: 'David Chen',
-            campaignName: 'Customer Success Stories',
-            createdAt: new Date(Date.now() - 86400000).toISOString(),
-            videoUrl: 'https://res.cloudinary.com/demo/video/upload/v1687513221/docs/makeup.mp4',
-            rating: 5,
-            quote: "I was skeptical at first, but the results speak for themselves. Highly recommended."
-          }
-        ];
-
-        // Combine real and dummy
-        const combined = [...realData, ...dummy];
-        setTestimonials(combined);
-        setFilteredTestimonials(combined);
-
-      } catch (error) {
-        console.error('Failed to load testimonials:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadTestimonials();
->>>>>>> d3aa92c (Update frontend dashboard pages)
   }, []);
 
   useEffect(() => {
@@ -168,7 +110,6 @@ export default function TestimonialsPage() {
       
       const data = await response.json();
       if (data.success) {
-        // If no real testimonials, show dummy data
         if (data.data && data.data.length > 0) {
           setTestimonials(data.data);
         } else {
@@ -179,21 +120,17 @@ export default function TestimonialsPage() {
     } catch (error) {
       console.error('Failed to load testimonials:', error);
       console.log('Using dummy testimonials due to error');
-      // Show dummy testimonials on error
       setTestimonials(dummyTestimonials);
-      setError(null); // Don't show error, just use dummy data
     } finally {
       setLoading(false);
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -218,16 +155,14 @@ export default function TestimonialsPage() {
     }
   };
 
-  if (loading && !selectedCampaign) {
-    return (
-      <div className="p-6 md:p-10 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 min-h-screen">
-        <div className="animate-pulse">
-          <div className="h-12 w-64 bg-slate-800/60 rounded-lg mb-4"></div>
-          <div className="h-5 w-48 bg-slate-800/40 rounded-lg"></div>
-        </div>
-      </div>
-    );
-  }
+  const wallEmbedCode = `<div id="feedspace-wall-of-love" data-campaign="${selectedCampaign || 'default'}"></div>\n<script src="${typeof window !== 'undefined' ? window.location.origin : 'https://feedspace.ai'}/embed.js" async></script>`;
+
+  const handleCopyWall = () => {
+    navigator.clipboard.writeText(wallEmbedCode);
+    setWallCopied(true);
+    setTimeout(() => setWallCopied(false), 2500);
+  };
+
 
   return (
     <div className="p-6 md:p-10 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 min-h-screen">
@@ -235,35 +170,64 @@ export default function TestimonialsPage() {
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/10 via-transparent to-indigo-900/10 pointer-events-none"></div>
 
       <div className="relative z-10">
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent mb-2">
-            Testimonials
-          </h1>
-          <p className="text-slate-400 text-lg">
-            View all collected video testimonials ({testimonials.length})
-          </p>
-          
-          {/* Campaign Selector */}
-          {campaigns.length > 0 && (
-            <div className="mt-6">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Select Campaign
-              </label>
+        {/* Header with Wall of Love CTA */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-10">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent">
+                Testimonials
+              </h1>
+              <span className="px-3 py-1 rounded-full text-xs font-bold glass-pill text-cyan-300 border border-cyan-500/30">
+                {testimonials.length} {testimonials.length === 1 ? 'Video' : 'Videos'}
+              </span>
+            </div>
+            <p className="text-slate-400 text-sm sm:text-base">
+              Autonomous video collection, viral 9:16 reels, and embeddable customer stories.
+            </p>
+          </div>
+
+          {/* Action Hub */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setShowEmbedModal(true)}
+              className="py-3 px-5 rounded-2xl glass-btn-primary text-white font-bold text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition-all duration-200 shadow-lg shadow-purple-500/20 active:scale-98"
+            >
+              <span>🌟</span>
+              <span>Wall of Love & Embed Widget</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Campaign Selector Bar */}
+        {campaigns.length > 0 && (
+          <div className="mb-8 glass-morphism p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-white/10">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Active Campaign:
+              </span>
               <select
                 value={selectedCampaign || ''}
                 onChange={(e) => setSelectedCampaign(e.target.value)}
-                className="px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500/50 transition duration-300 cursor-pointer focus:bg-slate-800 max-w-md"
+                className="px-3.5 py-2 glass-input rounded-xl text-slate-100 text-sm focus:outline-none cursor-pointer"
               >
                 {campaigns.map(campaign => (
-                  <option key={campaign._id} value={campaign._id}>
+                  <option key={campaign._id} value={campaign._id} className="bg-slate-900 text-white">
                     {campaign.name}
                   </option>
                 ))}
               </select>
             </div>
-          )}
-        </div>
+
+            <div className="flex items-center gap-4 text-xs text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Auto-processing: <b>Active</b>
+              </span>
+              <span>•</span>
+              <span>Single 45s Reel Enforced</span>
+            </div>
+          </div>
+        )}
 
         {/* Error State */}
         {error && (
@@ -287,17 +251,15 @@ export default function TestimonialsPage() {
 
         {/* Empty State */}
         {!loading && testimonials.length === 0 && (
-          <div className="text-center py-20">
+          <div className="text-center py-20 glass-morphism rounded-3xl p-8 max-w-md mx-auto">
             <div className="relative inline-block mb-6">
-              <div className="w-24 h-24 bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded-full flex items-center justify-center border border-slate-800/50">
-                <svg className="w-12 h-12 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
+              <div className="w-20 h-20 bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded-full flex items-center justify-center border border-white/10 shadow-lg">
+                <span className="text-3xl">🎥</span>
               </div>
             </div>
-            <h3 className="text-2xl font-bold text-slate-100 mb-3">No testimonials yet</h3>
-            <p className="text-slate-400 mb-8 max-w-md mx-auto">
-              Share your campaign link to start collecting video testimonials. Videos will automatically appear here once uploaded.
+            <h3 className="text-2xl font-bold text-white mb-2">No testimonials yet</h3>
+            <p className="text-slate-400 text-sm mb-6">
+              Share your campaign link to start collecting video testimonials.
             </p>
           </div>
         )}
@@ -305,59 +267,210 @@ export default function TestimonialsPage() {
         {/* Testimonials Grid */}
         {!loading && testimonials.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {testimonials.map((testimonial) => (
-              <div
-                key={testimonial._id}
-                className="group bg-slate-900/60 backdrop-blur-md border border-slate-800/50 rounded-xl overflow-hidden hover:shadow-xl hover:shadow-cyan-500/20 hover:-translate-y-1 transition duration-300"
-              >
-                {/* Video Container */}
-                <div className="relative aspect-video bg-slate-950">
-                  <video
-                    src={testimonial.videoUrl}
-                    controls
-                    className="w-full h-full object-cover"
-                    preload="metadata"
-                  />
-                </div>
+            {testimonials.map((testimonial) => {
+              const embedSnippet = `<iframe src="${testimonial.videoUrl}" width="360" height="640" frameborder="0" allow="autoplay; fullscreen" allowfullscreen style="border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.5);"></iframe>`;
 
-                {/* Info Section */}
-                <div className="p-5">
-                  {/* User Name */}
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white font-bold text-sm">
-                        {testimonial.userName.charAt(0).toUpperCase()}
+              const handleCopyEmbed = (e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(embedSnippet);
+                setCopiedId(testimonial._id);
+                setTimeout(() => setCopiedId(null), 2500);
+              };
+
+              return (
+                <div
+                  key={testimonial._id}
+                  className="group glass-morphism glass-morphism-hover rounded-3xl overflow-hidden flex flex-col justify-between"
+                >
+                  {/* Video Container with Smart Overlay */}
+                  <div className="relative aspect-video bg-slate-950 overflow-hidden">
+                    <video
+                      src={testimonial.videoUrl}
+                      controls
+                      className="w-full h-full object-cover"
+                      preload="metadata"
+                    />
+                    {/* Duration Badge Overlay */}
+                    <div className="absolute top-3 right-3 pointer-events-none z-10">
+                      <span className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold glass-pill bg-black/70 text-white border border-white/20 backdrop-blur-md shadow-lg">
+                        ⏱️ 0:45 Reel
                       </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-slate-100 font-semibold truncate">
-                        {testimonial.userName}
-                      </h3>
-                      <p className="text-slate-400 text-xs">
-                        {formatDate(testimonial.createdAt)}
-                      </p>
                     </div>
                   </div>
 
-                  {/* Badges */}
-                  <div className="flex flex-wrap gap-2">
-                    {/* Status Badge */}
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(testimonial.status)}`}>
-                      {testimonial.status.charAt(0).toUpperCase() + testimonial.status.slice(1)}
-                    </span>
+                  {/* Info Section */}
+                  <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                    <div>
+                      {/* User Header */}
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 bg-gradient-to-tr from-cyan-400 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md border border-white/20">
+                          <span className="text-white font-extrabold text-sm">
+                            {testimonial.userName ? testimonial.userName.charAt(0).toUpperCase() : 'U'}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-white font-bold text-sm truncate">
+                            {testimonial.userName}
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <span className="text-yellow-400 text-xs">★★★★★</span>
+                            <span className="text-slate-400 text-[11px]">
+                              {formatDate(testimonial.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                    {/* Sentiment Badge */}
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${
-                      testimonial.sentiment === 'positive' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                      testimonial.sentiment === 'negative' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                      'bg-slate-500/20 text-slate-400 border-slate-500/30'
-                    }`}>
-                      {getSentimentEmoji(testimonial.sentiment)} {testimonial.sentiment}
-                    </span>
+                      {/* Feedback Quote Preview */}
+                      {testimonial.feedbackText && (
+                        <p className="text-slate-300 text-xs italic glass-pill p-3 rounded-xl border border-white/10 line-clamp-2 my-2">
+                          &ldquo;{testimonial.feedbackText}&rdquo;
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-3 pt-1">
+                      {/* Badges */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${getStatusBadgeColor(testimonial.status)}`}>
+                            {testimonial.status.charAt(0).toUpperCase() + testimonial.status.slice(1)}
+                          </span>
+
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                            testimonial.sentiment === 'positive' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                            testimonial.sentiment === 'negative' ? 'bg-red-500/20 text-red-300 border-red-500/30' :
+                            'bg-slate-500/20 text-slate-300 border-slate-500/30'
+                          }`}>
+                            {getSentimentEmoji(testimonial.sentiment)} {testimonial.sentiment}
+                          </span>
+                        </div>
+
+                        <span className="text-[11px] font-bold text-yellow-300 bg-yellow-500/10 px-2 py-0.5 rounded-md border border-yellow-500/20">
+                          🔥 94% Viral
+                        </span>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-2.5 pt-1">
+                        <button
+                          onClick={() => setSelectedTestimonialForStudio(testimonial)}
+                          className="py-2.5 px-3 rounded-xl glass-btn-primary text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span>✨</span>
+                          <span>AI Reel Studio</span>
+                        </button>
+
+                        <button
+                          onClick={handleCopyEmbed}
+                          className="py-2.5 px-3 rounded-xl glass-btn text-slate-200 text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          {copiedId === testimonial._id ? (
+                            <span className="text-emerald-400 font-bold">Copied! ✓</span>
+                          ) : (
+                            <>
+                              <span>📋</span>
+                              <span>Copy Embed</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* AI Insights Link */}
+                      <div className="pt-1 text-center">
+                        <Link
+                          href={`/embed/testimonial/${testimonial._id}`}
+                          target="_blank"
+                          className="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium inline-flex items-center gap-1 transition"
+                        >
+                          <span>📊 View AI Emotion & Trust Insights</span>
+                          <span>↗</span>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Reel Studio Modal */}
+        <ReelStudioModal
+          testimonial={selectedTestimonialForStudio}
+          isOpen={Boolean(selectedTestimonialForStudio)}
+          onClose={() => setSelectedTestimonialForStudio(null)}
+          onClipCreated={() => {
+            if (selectedCampaign) {
+              loadTestimonials(selectedCampaign);
+            }
+          }}
+        />
+
+        {/* Wall of Love & Universal Embed Modal */}
+        {showEmbedModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+            <div className="glass-morphism rounded-3xl p-6 sm:p-8 max-w-xl w-full border border-white/20 shadow-2xl relative">
+              <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-400 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg border border-white/20">
+                    <span className="text-xl">🌟</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Wall of Love Embed</h3>
+                    <p className="text-slate-400 text-xs">Embed customer testimonials onto your website</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowEmbedModal(false)}
+                  className="p-2 text-slate-400 hover:text-white glass-pill rounded-full cursor-pointer transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-slate-300 text-sm leading-relaxed">
+                  Paste this snippet into your HTML, WordPress, Webflow, or React site. It automatically renders a responsive, high-converting video testimonial grid:
+                </p>
+
+                <div className="relative">
+                  <pre className="p-4 rounded-xl bg-slate-950/80 border border-white/10 text-xs text-cyan-300 font-mono overflow-x-auto whitespace-pre-wrap">
+                    {wallEmbedCode}
+                  </pre>
+                  <button
+                    onClick={handleCopyWall}
+                    className="absolute top-2.5 right-2.5 px-3 py-1.5 rounded-lg glass-btn text-xs font-bold text-white cursor-pointer"
+                  >
+                    {wallCopied ? 'Copied! ✓' : 'Copy Code'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 pt-2 text-center text-xs text-slate-400">
+                  <div className="p-2.5 glass-pill rounded-xl border border-white/10">
+                    <span className="block text-white font-bold mb-0.5">⚡ 0ms Lag</span>
+                    <span>Edge Cached</span>
+                  </div>
+                  <div className="p-2.5 glass-pill rounded-xl border border-white/10">
+                    <span className="block text-white font-bold mb-0.5">📱 Responsive</span>
+                    <span>Mobile & Desktop</span>
+                  </div>
+                  <div className="p-2.5 glass-pill rounded-xl border border-white/10">
+                    <span className="block text-white font-bold mb-0.5">🔒 Verified</span>
+                    <span>SSL Secured</span>
                   </div>
                 </div>
               </div>
-            ))}
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setShowEmbedModal(false)}
+                  className="px-6 py-2.5 rounded-xl glass-btn text-white text-sm font-semibold cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

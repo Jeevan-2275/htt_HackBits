@@ -10,6 +10,7 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [copiedCampaignId, setCopiedCampaignId] = useState(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -36,7 +37,8 @@ export default function CampaignsPage() {
   const handleCopyLink = (campaignId) => {
     const publicLink = `${window.location.origin}/record/${campaignId}`;
     navigator.clipboard.writeText(publicLink);
-    alert('Public link copied to clipboard!');
+    setCopiedCampaignId(campaignId);
+    setTimeout(() => setCopiedCampaignId(null), 2500);
   };
 
   const handleDeleteCampaign = async (campaignId) => {
@@ -71,7 +73,7 @@ export default function CampaignsPage() {
             <p className="text-slate-400 text-lg">Manage and create testimonial campaigns</p>
           </div>
           <Link href="/dashboard/campaigns/create" className="mt-4 md:mt-0 cursor-pointer">
-            <button className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/40 hover:scale-105 transition duration-300 cursor-pointer transform active:scale-95">
+            <button className="w-full md:w-auto px-8 py-3.5 glass-btn-primary text-white font-bold text-sm rounded-2xl cursor-pointer">
               + Create Campaign
             </button>
           </Link>
@@ -112,55 +114,65 @@ export default function CampaignsPage() {
             {campaigns.map((campaign) => (
               <div
                 key={campaign._id}
-                className="group relative bg-slate-900/60 backdrop-blur-md border border-slate-800/50 rounded-xl p-6 hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-1 transition duration-300 flex flex-col overflow-hidden"
+                className="group relative glass-morphism glass-morphism-hover rounded-3xl p-7 flex flex-col justify-between overflow-hidden"
               >
-                {/* Gradient Top Border */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-transparent opacity-0 group-hover:opacity-100 transition duration-300"></div>
+                {/* Frosted Specular Glare */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-white/10 to-transparent pointer-events-none"></div>
 
-                {/* Campaign Title */}
-                <h3 className="text-lg font-bold text-slate-100 mb-2">{campaign.name}</h3>
+                <div>
+                  {/* Campaign Title & Status */}
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <h3 className="text-lg font-bold text-white tracking-tight">{campaign.name}</h3>
+                    <span className="inline-block px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      ● Active
+                    </span>
+                  </div>
 
-                {/* Status Badge */}
-                <div className="mb-4">
-                  <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    ● Active
-                  </span>
+                  <p className="text-xs text-slate-400 mb-5">
+                    {campaign.companyName || 'Campaign'} • {campaign.feedbackType || 'Customer Feedback'}
+                  </p>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <div className="glass-pill rounded-xl p-3 border border-white/10">
+                      <p className="text-slate-400 text-[11px] mb-1 font-bold uppercase">Questions</p>
+                      <p className="text-2xl font-extrabold text-white">{campaign.questions?.length || 0}</p>
+                    </div>
+                    <div className="glass-pill rounded-xl p-3 border border-white/10">
+                      <p className="text-slate-400 text-[11px] mb-1 font-bold uppercase">Testimonials</p>
+                      <p className="text-2xl font-extrabold text-white">{campaign.testimonialCount || 0}</p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-4 mb-6 flex-1">
-                  <div className="bg-slate-800/40 hover:bg-slate-800/60 rounded-lg p-3 transition duration-300 border border-slate-800/30">
-                    <p className="text-slate-400 text-xs mb-1 font-medium">Questions</p>
-                    <p className="text-2xl font-bold text-slate-100">{campaign.questions?.length || 0}</p>
-                  </div>
-                  <div className="bg-slate-800/40 hover:bg-slate-800/60 rounded-lg p-3 transition duration-300 border border-slate-800/30">
-                    <p className="text-slate-400 text-xs mb-1 font-medium">Testimonials</p>
-                    <p className="text-2xl font-bold text-slate-100">{campaign.testimonialCount || 0}</p>
-                  </div>
-                </div>
+                <div>
+                  {/* Date */}
+                  <p className="text-slate-500 text-xs mb-5 font-medium">Created: {formatDate(campaign.createdAt)}</p>
 
-                {/* Date */}
-                <p className="text-slate-500 text-sm mb-6 font-medium">Created: {formatDate(campaign.createdAt)}</p>
-
-                {/* Actions */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleCopyLink(campaign._id)}
-                    className="flex-1 px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-blue-400 border border-blue-500/30 rounded-lg font-medium transition duration-300 cursor-pointer"
-                  >
-                    Copy Link
-                  </button>
-                  <Link href={`/record/${campaign._id}`} className="flex-1 cursor-pointer">
-                    <button className="w-full px-4 py-2 bg-slate-800/40 hover:bg-slate-800/60 text-slate-100 rounded-lg font-medium transition duration-300 cursor-pointer border border-slate-800/30">
-                      View
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleCopyLink(campaign._id)}
+                      className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs transition duration-200 cursor-pointer ${
+                        copiedCampaignId === campaign._id
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                          : 'glass-btn text-cyan-300 hover:text-white'
+                      }`}
+                    >
+                      {copiedCampaignId === campaign._id ? 'Copied! ✓' : '📋 Copy Link'}
                     </button>
-                  </Link>
-                  <button
-                    onClick={() => handleDeleteCampaign(campaign._id)}
-                    className="flex-1 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg font-medium transition duration-300 cursor-pointer"
-                  >
-                    Delete
-                  </button>
+                    <Link href={`/record/${campaign._id}`} className="flex-1 cursor-pointer">
+                      <button className="w-full py-2.5 px-3 glass-btn rounded-xl font-bold text-xs text-slate-200 hover:text-white transition duration-200 cursor-pointer">
+                        Preview
+                      </button>
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteCampaign(campaign._id)}
+                      className="py-2.5 px-3 glass-btn text-red-400 hover:text-red-300 rounded-xl font-bold text-xs border-red-500/20 hover:border-red-500/40 transition duration-200 cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

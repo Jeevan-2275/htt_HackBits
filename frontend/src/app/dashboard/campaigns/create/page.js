@@ -5,8 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import campaignService from '@/lib/campaignService';
-import { generateAIQuestions } from '@/lib/mockApi';
-// import { createCampaign, generateAIQuestions } from '@/lib/mockApi'; 
 import DynamicListInput from '@/components/DynamicListInput';
 
 export default function CreateCampaignPage() {
@@ -67,18 +65,48 @@ export default function CreateCampaignPage() {
     setError('');
 
     try {
-      const result = await generateAIQuestions({
-        companyName: formData.companyName,
-        productName: formData.productName || formData.campaignName,
-        feedbackType: formData.feedbackType,
-        campaignName: formData.campaignName,
-        productDescription: formData.productDescription,
-        questionCount: 10,
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_BASE}/campaigns/questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: formData.companyName || 'Our Company',
+          productName: formData.productName || formData.campaignName || 'Our Product',
+          feedbackType: formData.feedbackType || 'General Feedback',
+          campaignName: formData.campaignName || 'Customer Feedback',
+          productDescription: formData.productDescription,
+          questionCount: 5,
+        })
       });
-      setGeneratedQuestions(result.questions || []);
-      setQuestionSetId(result.id || null);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data && data.data.questions) {
+          setGeneratedQuestions(data.data.questions);
+          setQuestionSetId(data.data.id || null);
+          return;
+        }
+      }
+
+      // Safe fallback questions
+      const defaultQuestions = [
+        "What specific challenge made you search for our solution?",
+        "How has our product changed your daily workflow?",
+        "What quantifiable results or time savings have you achieved?",
+        "What would you tell someone who is considering this solution?",
+        "Would you recommend this product to a colleague? Why?"
+      ];
+      setGeneratedQuestions(defaultQuestions);
     } catch (err) {
-      setError('Failed to generate questions. Please try again.');
+      console.warn('Backend question generation warning, using fallback:', err.message);
+      const defaultQuestions = [
+        "What specific challenge made you search for our solution?",
+        "How has our product changed your daily workflow?",
+        "What quantifiable results or time savings have you achieved?",
+        "What would you tell someone who is considering this solution?",
+        "Would you recommend this product to a colleague? Why?"
+      ];
+      setGeneratedQuestions(defaultQuestions);
     } finally {
       setGeneratingQuestions(false);
     }
@@ -99,7 +127,6 @@ export default function CreateCampaignPage() {
     setError('');
 
     try {
-<<<<<<< HEAD
       const campaignPayload = {
         name: formData.campaignName,
         description: formData.productDescription,
@@ -118,54 +145,6 @@ export default function CreateCampaignPage() {
     } catch (err) {
       setError(err.message || 'Failed to create campaign. Please try again.');
       console.error('Campaign creation error:', err);
-=======
-      const selectedQuestions = manualQuestions.length > 0
-        ? manualQuestions
-        : (generatedQuestions.length > 0 ? generatedQuestions : []);
-
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error("You must be logged in to create a campaign");
-      }
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: formData.campaignName,
-          description: formData.productDescription,
-          questions: selectedQuestions,
-          // Extra fields for QuestionSet creation if needed by backend
-          companyName: formData.companyName,
-          productName: formData.productName || formData.campaignName,
-          feedbackType: formData.feedbackType,
-          companyLogo: formData.companyLogo,
-          // If we already have a questionSetId from generation, we could pass it,
-          // but our backend logic creates a NEW one if 'questions' array is passed.
-          // Since user might have edited, sending 'questions' array is safer.
-        })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to create campaign');
-      }
-
-      // Map backend response to what UI expects (id, name, questions)
-      setCreatedCampaign({
-        id: data.data._id,
-        name: data.data.name,
-        questions: selectedQuestions 
-      });
-
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Failed to create campaign. Please try again.');
->>>>>>> d3aa92c (Update frontend dashboard pages)
     } finally {
       setLoading(false);
     }
@@ -239,25 +218,35 @@ export default function CreateCampaignPage() {
 
   if (createdCampaign) {
     return (
-      <div className="p-6 md:p-10">
+      <div className="p-6 md:p-10 relative">
+        {/* Ambient Glow Refraction Orbs */}
+        <div className="absolute top-10 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+        <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-cyan-600/15 rounded-full blur-[120px] pointer-events-none"></div>
+
         {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-4xl font-bold text-white mb-2">Campaign Created Successfully! 🎉</h1>
+        <div className="mb-10 relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-pill text-xs font-semibold text-emerald-400 mb-3">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Ready for Video Ingestion
+          </div>
+          <h1 className="text-4xl font-extrabold text-white mb-2 font-heading tracking-tight">Campaign Created Successfully! 🎉</h1>
           <p className="text-white/60">Your campaign is ready to collect testimonials</p>
         </div>
 
         {/* Success Card */}
-        <div className="max-w-4xl space-y-8">
+        <div className="max-w-4xl space-y-8 relative z-10">
           {/* Campaign Active Alert */}
-          <div className="bg-emerald-500/15 border border-emerald-500/30 rounded-xl p-6">
-            <p className="text-emerald-400 font-semibold mb-2">✅ Campaign Active</p>
-            <p className="text-white/70 text-sm">Your campaign is now live and ready to collect testimonials.</p>
+          <div className="glass-morphism border-emerald-500/30 rounded-2xl p-6 bg-emerald-500/10 shadow-lg shadow-emerald-500/5">
+            <p className="text-emerald-400 font-semibold mb-1 flex items-center gap-2">
+              <span className="text-lg">✅</span> Campaign Active & Ready
+            </p>
+            <p className="text-white/70 text-sm">Your campaign is live. Customers can record testimonials immediately.</p>
           </div>
 
           {/* Campaign Details */}
-          <div className="glass p-8 space-y-6">
+          <div className="glass-morphism p-8 rounded-2xl space-y-6">
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
+              <span className="w-2.5 h-2.5 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full animate-glow-pulse"></span>
               Campaign Details
             </h2>
 
@@ -268,7 +257,7 @@ export default function CreateCampaignPage() {
 
             <div>
               <p className="text-white/50 text-sm mb-2">Campaign ID</p>
-              <p className="text-white/80 font-mono text-sm bg-white/5 px-4 py-2 rounded border border-white/10">{createdCampaign._id}</p>
+              <p className="text-cyan-300 font-mono text-sm glass-input px-4 py-2 rounded-xl inline-block border border-white/10">{createdCampaign._id}</p>
             </div>
 
             <div>
@@ -278,23 +267,23 @@ export default function CreateCampaignPage() {
                   type="text"
                   readOnly
                   value={`${typeof window !== 'undefined' ? window.location.origin : ''}/record/${createdCampaign._id}`}
-                  className="flex-1 px-4 py-2 bg-white/5 text-white/80 rounded-lg text-sm border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="flex-1 px-4 py-2.5 glass-input text-white/90 rounded-xl text-sm border border-white/15 focus:outline-none"
                 />
                 <button
                   onClick={handleCopyLink}
-                  className="px-6 py-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 text-white rounded-lg font-bold transition cursor-pointer hover:scale-105"
+                  className="px-6 py-2.5 glass-btn-primary text-white rounded-xl font-bold transition cursor-pointer"
                 >
-                  Copy
+                  Copy Link
                 </button>
               </div>
             </div>
 
             <div>
               <p className="text-white/50 text-sm mb-2">Generated Questions ({createdCampaign.questions.length})</p>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
                 {createdCampaign.questions.map((q, idx) => (
-                  <p key={idx} className="text-white/70 text-sm flex items-start gap-3 p-2 bg-white/5 rounded border border-white/10">
-                    <span className="text-blue-400 font-bold flex-shrink-0">{idx + 1}.</span>
+                  <p key={idx} className="text-white/80 text-sm flex items-start gap-3 p-3 glass-pill rounded-xl">
+                    <span className="text-cyan-400 font-bold flex-shrink-0">{idx + 1}.</span>
                     <span>{q}</span>
                   </p>
                 ))}
@@ -303,16 +292,16 @@ export default function CreateCampaignPage() {
           </div>
 
           {/* Email Distribution Section */}
-          <div className="glass p-8 space-y-6">
+          <div className="glass-morphism p-8 rounded-2xl space-y-6">
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
+              <span className="w-2.5 h-2.5 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full"></span>
               📧 Distribute via Email
             </h2>
-            <p className="text-white/60">Send the campaign link directly to participants via email</p>
+            <p className="text-white/60 text-sm">Send the campaign link directly to participants via email</p>
 
             {/* Email Success Alert */}
             {emailSuccess && (
-              <div className="p-4 bg-emerald-500/15 border border-emerald-500/30 rounded-lg">
+              <div className="p-4 bg-emerald-500/15 border border-emerald-500/30 rounded-xl">
                 <p className="text-emerald-400 text-sm font-semibold">✅ Emails sent successfully!</p>
               </div>
             )}
@@ -327,7 +316,7 @@ export default function CreateCampaignPage() {
                 onChange={(e) => setEmails(e.target.value)}
                 placeholder="john@example.com, sarah@example.com&#10;or paste multiple emails (one per line)"
                 rows="4"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition resize-none"
+                className="w-full px-4 py-3 glass-input rounded-xl text-white placeholder-white/30 focus:outline-none transition resize-none"
               />
             </div>
 
@@ -335,7 +324,7 @@ export default function CreateCampaignPage() {
             <button
               onClick={handleSendEmails}
               disabled={emailLoading || !emails.trim()}
-              className="w-full px-6 py-3 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition cursor-pointer hover:scale-105"
+              className="w-full px-6 py-3.5 glass-btn-primary disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition cursor-pointer"
             >
               {emailLoading ? '📧 Sending Emails...' : '📧 Send Links via Email'}
             </button>
@@ -344,13 +333,13 @@ export default function CreateCampaignPage() {
           {/* Action Buttons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Link href="/dashboard/campaigns" className="cursor-pointer">
-              <button className="w-full px-6 py-3 glass text-white rounded-lg font-bold transition cursor-pointer hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/10">
+              <button className="w-full px-6 py-3.5 glass-btn text-white rounded-xl font-bold transition cursor-pointer">
                 ← Back to Campaigns
               </button>
             </Link>
             <button
               onClick={() => window.open(`/record/${createdCampaign._id}`, '_blank')}
-              className="w-full px-6 py-3 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50 text-white rounded-lg font-bold transition cursor-pointer hover:scale-105"
+              className="w-full px-6 py-3.5 glass-btn-primary text-white rounded-xl font-bold transition cursor-pointer"
             >
               🎥 Test Recording Link
             </button>
@@ -361,27 +350,37 @@ export default function CreateCampaignPage() {
   }
 
   return (
-    <div className="p-6 md:p-10">
+    <div className="p-6 md:p-10 relative">
+      {/* Ambient Glow Refraction Orbs */}
+      <div className="absolute top-0 left-1/3 w-96 h-96 bg-purple-600/15 rounded-full blur-[130px] pointer-events-none"></div>
+      <div className="absolute bottom-20 right-10 w-96 h-96 bg-cyan-600/15 rounded-full blur-[130px] pointer-events-none"></div>
+
       {/* Header with Gradient Text */}
-      <div className="mb-12 flex items-center justify-between">
+      <div className="mb-10 flex items-center justify-between relative z-10">
         <div>
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent mb-2">Create Campaign</h1>
-          <p className="text-white/60">Set up a new testimonial collection campaign</p>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-pill text-xs font-semibold text-cyan-400 mb-3">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+            Campaign Architect
+          </div>
+          <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2 font-heading tracking-tight">
+            Create Campaign
+          </h1>
+          <p className="text-white/60">Set up a high-converting testimonial collection campaign</p>
         </div>
         <Link href="/dashboard/campaigns" className="cursor-pointer">
-          <button className="px-6 py-3 glass text-white rounded-lg font-medium transition cursor-pointer hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/10">
+          <button className="px-5 py-2.5 glass-btn text-white rounded-xl font-medium transition cursor-pointer">
             ← Back
           </button>
         </Link>
       </div>
 
       {/* Create Form Card */}
-      <div className="max-w-2xl">
-        <div className="glass p-8 space-y-8">
+      <div className="max-w-3xl relative z-10">
+        <div className="glass-morphism p-8 md:p-10 rounded-2xl space-y-8 shadow-2xl">
           {/* Campaign Info Section */}
           <div>
-            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-3">
-              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
+            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+              <span className="w-2.5 h-2.5 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full animate-glow-pulse"></span>
               Campaign Information
             </h2>
 
@@ -398,15 +397,15 @@ export default function CreateCampaignPage() {
                     type="file"
                     accept="image/*"
                     onChange={handleLogoUpload}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                    className="w-full px-4 py-3 glass-input rounded-xl text-white placeholder-white/30 focus:outline-none transition cursor-pointer"
                   />
                 </div>
                 {formData.companyLogo && (
-                  <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/10">
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-white/20 glass-morphism p-1">
                     <img
                       src={formData.companyLogo}
                       alt="Company Logo Preview"
-                      className="w-full h-full object-contain bg-white/5"
+                      className="w-full h-full object-contain rounded-lg"
                     />
                   </div>
                 )}
@@ -426,7 +425,7 @@ export default function CreateCampaignPage() {
                 value={formData.companyName}
                 onChange={handleInputChange}
                 placeholder="e.g., Apple Inc"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                className="w-full px-4 py-3 glass-input rounded-xl text-white placeholder-white/30 focus:outline-none transition"
               />
             </div>
 
@@ -442,7 +441,7 @@ export default function CreateCampaignPage() {
                 value={formData.productName}
                 onChange={handleInputChange}
                 placeholder="e.g., iPhone 15 Pro"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                className="w-full px-4 py-3 glass-input rounded-xl text-white placeholder-white/30 focus:outline-none transition"
               />
             </div>
 
@@ -456,15 +455,15 @@ export default function CreateCampaignPage() {
                 name="feedbackType"
                 value={formData.feedbackType}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                className="w-full px-4 py-3 glass-input rounded-xl text-white focus:outline-none transition cursor-pointer"
               >
-                <option value="General Feedback">General Feedback</option>
-                <option value="Product Review">Product Review</option>
-                <option value="Feature Request">Feature Request</option>
-                <option value="Customer Story">Customer Story</option>
-                <option value="Case Study">Case Study</option>
-                <option value="User Experience">User Experience</option>
-                <option value="Implementation Feedback">Implementation Feedback</option>
+                <option value="General Feedback" className="bg-slate-900 text-white">General Feedback</option>
+                <option value="Product Review" className="bg-slate-900 text-white">Product Review</option>
+                <option value="Feature Request" className="bg-slate-900 text-white">Feature Request</option>
+                <option value="Customer Story" className="bg-slate-900 text-white">Customer Story</option>
+                <option value="Case Study" className="bg-slate-900 text-white">Case Study</option>
+                <option value="User Experience" className="bg-slate-900 text-white">User Experience</option>
+                <option value="Implementation Feedback" className="bg-slate-900 text-white">Implementation Feedback</option>
               </select>
             </div>
 
@@ -480,7 +479,7 @@ export default function CreateCampaignPage() {
                 value={formData.campaignName}
                 onChange={handleInputChange}
                 placeholder="e.g., Product Launch Feedback"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                className="w-full px-4 py-3 glass-input rounded-xl text-white placeholder-white/30 focus:outline-none transition"
               />
             </div>
 
@@ -495,59 +494,62 @@ export default function CreateCampaignPage() {
                 value={formData.productDescription}
                 onChange={handleInputChange}
                 placeholder="Describe your product in detail so we can generate relevant questions..."
-                rows="5"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition resize-none"
+                rows="4"
+                className="w-full px-4 py-3 glass-input rounded-xl text-white placeholder-white/30 focus:outline-none transition resize-none"
               ></textarea>
             </div>
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-gradient-to-r from-white/0 via-white/10 to-white/0"></div>
+          <div className="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent"></div>
 
           {/* Error Message */}
           {error && (
-            <div className="p-4 bg-red-500/15 border border-red-500/30 rounded-lg">
+            <div className="p-4 glass-morphism border-red-500/40 bg-red-500/10 rounded-xl">
               <p className="text-red-400 text-sm font-medium">⚠️ {error}</p>
             </div>
           )}
 
           {/* Questions Section */}
           <div>
-            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-3">
-              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
-              AI Questions
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
+              <span className="w-2.5 h-2.5 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full"></span>
+              AI Questions Generator
             </h2>
+            <p className="text-white/60 text-sm mb-4">
+              Instantly craft targeted interview prompts calibrated for 30s-60s video reels.
+            </p>
 
             {/* Generate Questions Button */}
             <button
               onClick={handleGenerateQuestions}
               disabled={generatingQuestions || !formData.productDescription.trim()}
-              className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:shadow-xl hover:shadow-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition cursor-pointer hover:scale-105"
+              className="w-full px-6 py-3.5 glass-btn text-white rounded-xl font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:border-purple-400/50"
             >
               {generatingQuestions ? (
-                <>
-                  <span className="animate-spin inline-block">⚡</span>
-                  {' '}Generating Questions...
-                </>
+                <span className="inline-flex items-center gap-2">
+                  <span className="animate-spin">⚡</span>
+                  Generating AI Prompts...
+                </span>
               ) : (
-                <>
+                <span className="inline-flex items-center gap-2">
                   <span>✨</span>
-                  {' '}Generate AI Questions
-                </>
+                  Generate 5 AI Questions
+                </span>
               )}
             </button>
 
             {/* Generated Questions Preview */}
             {generatedQuestions.length > 0 && (
-              <div className="mt-6 p-6 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                <p className="text-blue-300 font-semibold mb-4 flex items-center gap-2">
-                  <span className="text-lg">📋</span>
-                  Generated Questions ({generatedQuestions.length})
+              <div className="mt-6 p-6 glass-morphism rounded-xl border border-cyan-500/30 bg-cyan-500/5">
+                <p className="text-cyan-300 font-semibold mb-4 flex items-center gap-2 text-sm">
+                  <span>📋</span>
+                  Generated AI Questions ({generatedQuestions.length})
                 </p>
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {generatedQuestions.map((question, idx) => (
-                    <div key={idx} className="flex items-start gap-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition border border-white/10">
-                      <span className="text-blue-400 font-bold text-sm flex-shrink-0 mt-0.5">{idx + 1}.</span>
+                    <div key={idx} className="flex items-start gap-3 p-3 glass-pill rounded-xl">
+                      <span className="text-cyan-400 font-bold text-xs flex-shrink-0 mt-0.5">{idx + 1}.</span>
                       <span className="text-white/80 text-sm">{question}</span>
                     </div>
                   ))}
@@ -557,16 +559,16 @@ export default function CreateCampaignPage() {
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-gradient-to-r from-white/0 via-white/10 to-white/0"></div>
+          <div className="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent"></div>
 
           {/* Manual Questions Section */}
           <div>
-            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-3">
-              <span className="w-2 h-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-full"></span>
-              Manual Questions
+            <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-3">
+              <span className="w-2.5 h-2.5 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full"></span>
+              Custom Questions
             </h2>
             <p className="text-white/60 text-sm mb-4">
-              Add your own questions. If you add any manual questions, they will be used instead of AI questions.
+              Add your own custom questions if you want full manual control over the prompts.
             </p>
             <DynamicListInput
               label="Custom Questions"
@@ -578,15 +580,15 @@ export default function CreateCampaignPage() {
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-gradient-to-r from-white/0 via-white/10 to-white/0"></div>
+          <div className="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent"></div>
 
           {/* Create Campaign Button */}
           <button
             onClick={handleCreateCampaign}
             disabled={loading || !formData.campaignName.trim()}
-            className="w-full px-6 py-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:shadow-xl hover:shadow-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition cursor-pointer text-lg hover:scale-105"
+            className="w-full px-6 py-4 glass-btn-primary disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition cursor-pointer text-lg tracking-wide"
           >
-            {loading ? '⏳ Creating Campaign...' : '🚀 Create Campaign'}
+            {loading ? '⏳ Creating Campaign...' : '🚀 Launch Campaign'}
           </button>
         </div>
       </div>

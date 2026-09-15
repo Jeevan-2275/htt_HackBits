@@ -211,36 +211,40 @@ exports.startSession = async (req, res) => {
       firstQuestion = `Hey! Thanks for taking a few minutes to share your thoughts. I'd love to hear about your experience with ${promptData.interviewGoal}. Ready when you are!`;
     }
 
-    // Generate Audio for first question
-    const audioPath = await aiService.generateSpeech(firstQuestion);
-
-    // Upload audio to Cloudinary (or serve static, but Cloudinary is better for persistence)
-    const audioUpload = await uploadToCloudinary(
-      audioPath,
-      "htt_hackbits/audio_responses",
-    );
+    // Generate Audio for first question (with safe fallback)
+    let audioUrl = "";
+    try {
+      const audioPath = await aiService.generateSpeech(firstQuestion);
+      if (audioPath && fs.existsSync(audioPath)) {
+        const audioUpload = await uploadToCloudinary(
+          audioPath,
+          "htt_hackbits/audio_responses",
+        );
+        audioUrl = audioUpload.secure_url;
+        if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+      }
+    } catch (ttsErr) {
+      console.warn("⚠️ TTS generation failed in startSession (browser speech synthesis will be used):", ttsErr.message);
+    }
 
     // Save Turn
     await ConversationTurn.create({
       sessionId: session._id,
       role: "ai",
       content: firstQuestion,
-      audioUrl: audioUpload.secure_url,
+      audioUrl: audioUrl || "",
     });
-
-    // Cleanup local file
-    fs.unlinkSync(audioPath);
 
     res.status(201).json({
       success: true,
       sessionId: session._id,
       question: {
         text: firstQuestion,
-        audio: audioUpload.secure_url,
+        audio: audioUrl || "",
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Start Session Error:", error);
     res.status(500).json({ success: false, error: "Server Error" });
   }
 };
@@ -266,32 +270,16 @@ exports.nextTurn = async (req, res) => {
     // 1. Transcribe User Audio (needed immediately for AI)
     const userText = await transcriptionService.transcribeAudio(req.file.path);
 
-<<<<<<< HEAD
-    // 2. Save User Turn immediately with text (upload audio in background)
+    // 2. Detect Sentiment
+    const sentiment = await aiService.detectSentiment(userText);
+
+    // 3. Save User Turn immediately with text & sentiment (upload audio in background)
     const userTurn = await ConversationTurn.create({
       sessionId,
       role: "user",
       content: userText,
       audioUrl: null, // Will be updated in background
-=======
-    // 2. Upload User Audio to Cloudinary
-    const userAudioUpload = await uploadToCloudinary(
-      req.file.path,
-      "htt_hackbits/user_audio",
-    );
-
-    // 3. Detect Sentiment (if not already done for next question logic, do it here for storage)
-    // We need sentiment for the Reel generation later
-    const sentiment = await aiService.detectSentiment(userText);
-
-    // 4. Save User Turn with Sentiment
-    await ConversationTurn.create({
-      sessionId,
-      role: "user",
-      content: userText,
-      audioUrl: userAudioUpload.secure_url,
-      sentiment: sentiment
->>>>>>> 8370a91 (Update backend controllers (interview, project, testimonial))
+      sentiment: sentiment,
     });
 
     // 3. Upload User Audio to Cloudinary in background

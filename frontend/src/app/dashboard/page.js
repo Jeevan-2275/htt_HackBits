@@ -101,25 +101,25 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Stats Grid - with real data */}
+        {/* Stats Grid - Frosted Glassmorphism with Refraction */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           {stats.map((stat, index) => (
             <div
               key={index}
-              className="group relative overflow-hidden rounded-xl transition-all duration-300"
+              className="group relative"
             >
-              {/* Gradient Border Glow */}
-              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 to-indigo-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              
-              <div className="relative bg-slate-900/60 backdrop-blur-md border border-white/10/50 rounded-xl p-6 hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-1 transition duration-300">
+              <div className="glass-morphism glass-morphism-hover rounded-2xl p-6">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-slate-400 text-sm font-medium mb-2">{stat.label}</p>
-                    <p className="text-4xl font-bold text-slate-100">{stat.value}</p>
+                  <div className="space-y-1">
+                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">{stat.label}</p>
+                    <p className="text-4xl font-extrabold text-white tracking-tight">{stat.value}</p>
                   </div>
-                  <div className={`text-3xl bg-gradient-to-br ${stat.color} to-transparent p-3 rounded-lg min-w-16 text-center shadow-lg shadow-purple-500/10`}>
+                  <div className={`text-2xl bg-gradient-to-tr ${stat.color} to-transparent p-3 rounded-2xl min-w-14 text-center shadow-lg shadow-purple-500/20 border border-white/15 backdrop-blur-md`}>
                     {stat.icon}
                   </div>
+                </div>
+                <div className="mt-4 flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
+                  <span>● Live Updated</span>
                 </div>
               </div>
             </div>
@@ -127,26 +127,31 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Activity Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Recent Campaigns */}
-          <div className="group bg-slate-900/60 backdrop-blur-md border border-white/10/50 rounded-xl p-6 shadow-lg shadow-purple-500/5 hover:shadow-xl hover:shadow-purple-500/10 transition duration-300">
-            <h2 className="text-xl font-bold text-slate-100 mb-6">Recent Campaigns</h2>
+          <div className="glass-morphism rounded-3xl p-7">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white tracking-tight">Recent Campaigns</h2>
+              <Link href="/dashboard/campaigns" className="text-xs font-bold text-cyan-400 hover:text-cyan-300 transition">
+                View All →
+              </Link>
+            </div>
             {recentCampaigns.length === 0 ? (
-              <div className="text-center py-8">
+              <div className="text-center py-10 glass-pill rounded-2xl border border-white/10">
                 <p className="text-slate-400 text-sm">No campaigns yet</p>
-                <Link href="/dashboard/campaigns/create" className="text-blue-400 hover:text-blue-300 text-sm mt-2">
-                  Create your first campaign
+                <Link href="/dashboard/campaigns/create" className="text-cyan-400 hover:text-cyan-300 font-bold text-xs mt-2 inline-block">
+                  + Create your first campaign
                 </Link>
               </div>
             ) : (
               <div className="space-y-3">
                 {recentCampaigns.map((campaign) => (
-                  <div key={campaign._id} className="flex items-center justify-between p-4 bg-slate-800/30 hover:bg-slate-800/50 rounded-lg transition duration-300 border border-white/10/30 hover:border-slate-700/50">
-                    <div className="flex-1">
-                      <p className="text-slate-100 font-medium">{campaign.name}</p>
-                      <p className="text-slate-500 text-sm">{campaign.testimonialCount || 0} testimonials collected</p>
+                  <div key={campaign._id} className="flex items-center justify-between p-4 glass-pill rounded-xl hover:bg-white/10 transition duration-200 border border-white/10">
+                    <div className="flex-1 min-w-0 pr-4">
+                      <p className="text-white font-semibold text-sm truncate">{campaign.name}</p>
+                      <p className="text-slate-400 text-xs">{campaign.testimonialCount || 0} testimonials collected</p>
                     </div>
-                    <div className="text-slate-400 text-sm">
+                    <div className="text-slate-400 text-xs font-medium">
                       {formatDate(campaign.createdAt)}
                     </div>
                   </div>
@@ -155,28 +160,28 @@ export default function DashboardPage() {
             )}
           </div>
 
-        {/* Activity Stats */}
-        <div className="group bg-slate-900/60 backdrop-blur-md border border-white/10/50 rounded-xl p-6 shadow-lg shadow-purple-500/5 hover:shadow-xl hover:shadow-purple-500/10 transition duration-300 mt-6">
-          <h2 className="text-xl font-bold text-slate-100 mb-6">Campaign Status Overview</h2>
-          <div className="space-y-5">
-            {campaigns.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-slate-400">Create campaigns to see statistics</p>
-              </div>
-            ) : (
-              <>
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-slate-400 text-sm font-medium">Active Campaigns</span>
-                    <span className="text-slate-100 font-bold">{campaigns.filter(c => c.status === 'active').length}</span>
-                  </div>
-                  <div className="w-full bg-slate-800/50 rounded-full h-2.5 overflow-hidden">
-                    <div 
-                      className="bg-gradient-to-r from-emerald-500 to-teal-600 h-2.5 rounded-full shadow-lg shadow-emerald-500/30" 
-                      style={{ width: campaigns.length > 0 ? `${(campaigns.filter(c => c.status === 'active').length / campaigns.length) * 100}%` : '0%' }}
-                    ></div>
-                  </div>
+          {/* Activity Stats */}
+          <div className="glass-morphism rounded-3xl p-7">
+            <h2 className="text-xl font-bold text-white mb-6 tracking-tight">Campaign Health Overview</h2>
+            <div className="space-y-6">
+              {campaigns.length === 0 ? (
+                <div className="text-center py-10 glass-pill rounded-2xl border border-white/10">
+                  <p className="text-slate-400 text-sm">Create campaigns to see health telemetry</p>
                 </div>
+              ) : (
+                <>
+                  <div>
+                    <div className="flex justify-between items-center mb-2 text-sm">
+                      <span className="text-slate-300 font-medium">Active Campaigns</span>
+                      <span className="text-white font-bold">{campaigns.filter(c => c.status === 'active').length} / {campaigns.length}</span>
+                    </div>
+                    <div className="w-full bg-slate-950/80 rounded-full h-3 overflow-hidden border border-white/10 p-0.5">
+                      <div 
+                        className="bg-gradient-to-r from-cyan-400 via-emerald-400 to-teal-500 h-full rounded-full shadow-lg shadow-emerald-500/30" 
+                        style={{ width: campaigns.length > 0 ? `${(campaigns.filter(c => c.status === 'active').length / campaigns.length) * 100}%` : '0%' }}
+                      ></div>
+                    </div>
+                  </div>
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-slate-400 text-sm font-medium">Archived</span>

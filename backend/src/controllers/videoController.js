@@ -123,17 +123,14 @@ const isTranscriptTooShort = (durationSeconds, transcription) => {
   return textLength < minChars || segmentCount < minSegments;
 };
 
+const Testimonial = require("../models/Testimonial");
+const Project = require("../models/Project");
+
 // @desc    Upload Raw Video for Session
 // @route   POST /api/video/upload
 exports.uploadRawVideo = async (req, res) => {
   try {
-    const { sessionId } = req.body;
-
-    if (!sessionId) {
-      return res
-        .status(400)
-        .json({ success: false, error: "sessionId is required" });
-    }
+    const { sessionId, campaignId, userName } = req.body;
 
     if (!req.file) {
       return res
@@ -141,11 +138,22 @@ exports.uploadRawVideo = async (req, res) => {
         .json({ success: false, error: "No video file uploaded" });
     }
 
-    const session = await InterviewSession.findById(sessionId);
-    if (!session) {
+    let session = null;
+    if (sessionId) {
+      session = await InterviewSession.findById(sessionId);
+    } else if (campaignId) {
+      // Create a new session for this campaign if none provided
+      session = await InterviewSession.create({
+        projectId: campaignId,
+        status: "completed",
+        videoUploadComplete: true
+      });
+    }
+
+    if (!session && !campaignId) {
       return res
-        .status(404)
-        .json({ success: false, error: "Session not found" });
+        .status(400)
+        .json({ success: false, error: "sessionId or campaignId is required" });
     }
 
     const uploadResult = await uploadToCloudinary(
@@ -154,7 +162,7 @@ exports.uploadRawVideo = async (req, res) => {
     );
 
     const videoAsset = await VideoAsset.create({
-      sessionId: session._id,
+      sessionId: session ? session._id : null,
       cloudinaryUrl: uploadResult.secure_url,
       cloudinaryPublicId: uploadResult.public_id,
       format: uploadResult.format,
@@ -162,17 +170,45 @@ exports.uploadRawVideo = async (req, res) => {
       isRaw: true,
     });
 
-    session.videoAssetId = videoAsset._id;
-    await session.save();
+    if (session) {
+      session.videoAssetId = videoAsset._id;
+      session.videoUploadComplete = true;
+      await session.save();
+    }
 
-    fs.unlinkSync(req.file.path);
+    // Determine target campaign
+    let targetCampaignId = campaignId || (session ? session.projectId : null);
+    if (!targetCampaignId && session && session.questionSetId) {
+      const proj = await Project.findOne({ questionSetId: session.questionSetId });
+      if (proj) targetCampaignId = proj._id;
+    }
+
+    // Automatic Testimonial Creation so video appears in the dashboard
+    let testimonial = null;
+    if (targetCampaignId) {
+      testimonial = await Testimonial.create({
+        campaignId: targetCampaignId,
+        sessionId: session ? session._id : null,
+        videoUrl: uploadResult.secure_url,
+        userName: userName || (session && session.userName) || "Verified Customer",
+        sentiment: "positive",
+        status: "published"
+      });
+      console.log(`✅ [TESTIMONIAL] Auto-created testimonial ${testimonial._id} for campaign ${targetCampaignId}`);
+    }
+
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
 
     res.status(201).json({
       success: true,
       data: videoAsset,
+      testimonial: testimonial,
+      sessionId: session ? session._id : null
     });
   } catch (error) {
-    console.error(error);
+    console.error("Upload Raw Video Error:", error);
     res.status(500).json({ success: false, error: "Server Error" });
   }
 };

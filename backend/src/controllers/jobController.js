@@ -127,10 +127,14 @@ const isTranscriptTooShort = (durationSeconds, transcription) => {
   return textLength < minChars || segmentCount < minSegments;
 };
 
+const Testimonial = require("../models/Testimonial");
+
 // @desc    Create Job + Upload Video + Auto-Process
 // @route   POST /api/jobs/create
 exports.createJob = async (req, res) => {
   try {
+    const { campaignId, userName } = req.body;
+
     if (!req.file) {
       return res
         .status(400)
@@ -140,9 +144,12 @@ exports.createJob = async (req, res) => {
     // Create session
     const session = await InterviewSession.create({
       status: "active",
+      projectId: campaignId || null,
+      userName: userName || "Verified Customer",
+      videoUploadComplete: true
     });
 
-    // Upload video to Cloudinary
+    // Upload video to Cloudinary / local fallback
     const uploadResult = await uploadToCloudinary(
       req.file.path,
       "htt_hackbits/raw_videos",
@@ -160,8 +167,23 @@ exports.createJob = async (req, res) => {
     session.videoAssetId = videoAsset._id;
     await session.save();
 
+    // If campaignId is provided, auto-create Testimonial so it appears in dashboard
+    if (campaignId) {
+      await Testimonial.create({
+        campaignId,
+        sessionId: session._id,
+        videoUrl: uploadResult.secure_url,
+        userName: userName || "Verified Customer",
+        sentiment: "positive",
+        status: "published"
+      });
+      console.log(`✅ [JOB] Testimonial auto-created for campaign ${campaignId}`);
+    }
+
     // Cleanup uploaded file
-    fs.unlinkSync(req.file.path);
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
 
     // Trigger automatic processing
     processJobAsync(session._id.toString());
@@ -172,7 +194,7 @@ exports.createJob = async (req, res) => {
       message: "Job created and processing started",
     });
   } catch (error) {
-    console.error(error);
+    console.error("Create Job Error:", error);
     res.status(500).json({ success: false, error: "Server Error" });
   }
 };

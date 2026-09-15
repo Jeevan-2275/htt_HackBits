@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getTestimonialById } from '@/lib/mockApi';
+import authService from '@/lib/authService';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function TestimonialDetailPage() {
   const params = useParams();
@@ -19,20 +21,42 @@ export default function TestimonialDetailPage() {
   useEffect(() => {
     const loadTestimonial = async () => {
       try {
-        const data = await getTestimonialById(testimonialId);
-        if (!data) {
-          setError('Testimonial not found');
-        } else {
-          setTestimonial(data);
+        const response = await fetch(`${API_URL}/testimonials/${testimonialId}`, {
+          headers: authService.getAuthHeaders()
+        });
+        if (response.ok) {
+          const json = await response.json();
+          if (json.data) {
+            setTestimonial(json.data);
+            return;
+          }
         }
+        // If not found in sessions, check /embed/testimonial insights
+        const insightRes = await fetch(`${API_URL}/testimonials/${testimonialId}/insights`);
+        if (insightRes.ok) {
+          const insightJson = await insightRes.json();
+          if (insightJson.data) {
+            setTestimonial({
+              userName: insightJson.data.customerName || 'Verified Customer',
+              status: 'Completed',
+              transcript: insightJson.data.transcript,
+              highlights: (insightJson.data.insights?.keyPoints || []).map(p => ({ quote: p, timestamp: '0:15' })),
+              sentiment: 'Positive'
+            });
+            return;
+          }
+        }
+        setError('Testimonial details not found');
       } catch (err) {
-        setError('Failed to load testimonial');
+        setError(err.message || 'Failed to load testimonial');
       } finally {
         setLoading(false);
       }
     };
 
-    loadTestimonial();
+    if (testimonialId) {
+      loadTestimonial();
+    }
   }, [testimonialId]);
 
   const copyEmbedCode = () => {

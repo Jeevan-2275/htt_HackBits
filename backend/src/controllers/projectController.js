@@ -1,4 +1,5 @@
 const Project = require('../models/Project');
+const CampaignQuestionSet = require('../models/CampaignQuestionSet');
 
 // @desc    Get all projects
 // @route   GET /api/projects
@@ -41,7 +42,6 @@ exports.getProject = async (req, res) => {
     }
 };
 
-<<<<<<< HEAD
 // @desc    Get single project (Public - for recording page)
 // @route   GET /api/projects/public/:id
 // @access  Public
@@ -92,9 +92,6 @@ exports.getProjectPublic = async (req, res) => {
         res.status(500).json({ success: false, error: 'Server Error', details: error.message });
     }
 };
-=======
-const CampaignQuestionSet = require('../models/CampaignQuestionSet');
->>>>>>> 8370a91 (Update backend controllers (interview, project, testimonial))
 
 // @desc    Create new project
 // @route   POST /api/projects
@@ -112,9 +109,16 @@ exports.createProject = async (req, res) => {
             return res.status(400).json({ success: false, error: 'Product description is required' });
         }
 
-        if (!questions || !Array.isArray(questions) || questions.length === 0) {
-            return res.status(400).json({ success: false, error: 'At least one question is required' });
+        let projectQuestions = questions;
+        if (!projectQuestions || !Array.isArray(projectQuestions) || projectQuestions.length === 0) {
+            projectQuestions = [
+                "What problem were you facing before using this product?",
+                "How did our product help improve your workflow?",
+                "What measurable results have you achieved?",
+                "Would you recommend this product to colleagues or friends? Why?"
+            ];
         }
+        req.body.questions = projectQuestions;
 
         // Add user to req.body
         req.body.userId = req.user.id;

@@ -11,6 +11,7 @@ const authController = require('../controllers/authController');
 const projectController = require('../controllers/projectController');
 const testimonialController = require('../controllers/testimonialController');
 const voiceController = require('../controllers/voiceController');
+const reelStudioController = require('../controllers/reelStudioController');
 
 // --- Auth Routes ---
 router.post('/auth/register', authController.register);
@@ -63,6 +64,10 @@ router.delete('/voice/cache', voiceController.clearCache);
 // Job Routes (Simplified Pipeline)
 router.post('/jobs/create', upload.single('video'), jobController.createJob);
 router.get('/jobs/:jobId', jobController.getJobStatus);
+
+// --- AI Reel Studio Routes ---
+router.post('/reels/director-analysis', reelStudioController.getDirectorAnalysis);
+router.post('/reels/render-custom', reelStudioController.renderCustomReel);
 
 // Status Route
 router.get('/health', (req, res) => res.json({ status: 'OK' }));

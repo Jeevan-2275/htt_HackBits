@@ -2,9 +2,15 @@ const ffmpeg = require("fluent-ffmpeg");
 const path = require("path");
 const fs = require("fs");
 
-// Ensure FFmpeg path is set (from .env or default)
-if (process.env.FFMPEG_PATH) {
-  ffmpeg.setFfmpegPath(process.env.FFMPEG_PATH);
+// Ensure FFmpeg path is set (from .env or ffmpeg-static)
+let ffmpegPath = process.env.FFMPEG_PATH;
+if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
+  try {
+    ffmpegPath = require("ffmpeg-static");
+  } catch (e) {}
+}
+if (ffmpegPath) {
+  ffmpeg.setFfmpegPath(ffmpegPath);
 }
 
 // Create Reel from Assets
@@ -227,6 +233,63 @@ const concatClips = (clipPaths, outputPath) => {
   });
 };
 
+const renderStudioReel = ({
+  inputPath,
+  outputPath,
+  startTime = 0,
+  endTime = 20,
+  aspectRatio = '9:16',
+  hookTitle = '',
+  watermarkText = 'Feedspace AI'
+}) => {
+  const duration = Math.max(1, endTime - startTime);
+  const absInputPath = path.resolve(inputPath);
+  const absOutputPath = path.resolve(outputPath);
+
+  let scaleFilter = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black";
+  if (aspectRatio === '1:1') {
+    scaleFilter = "scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:color=black";
+  } else if (aspectRatio === '16:9') {
+    scaleFilter = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black";
+  }
+
+  const videoFilters = [
+    "fps=30",
+    scaleFilter,
+    "setpts=PTS-STARTPTS"
+  ];
+
+  return new Promise((resolve, reject) => {
+    ffmpeg(absInputPath)
+      .setStartTime(startTime)
+      .setDuration(duration)
+      .videoCodec("libx264")
+      .audioCodec("aac")
+      .outputOptions([
+        "-pix_fmt yuv420p",
+        "-preset veryfast",
+        "-map_metadata -1",
+        "-reset_timestamps 1",
+        "-avoid_negative_ts make_zero",
+        "-movflags +faststart"
+      ])
+      .videoFilters(videoFilters)
+      .audioFilters([
+        "aresample=44100",
+        "asetpts=PTS-STARTPTS"
+      ])
+      .on("error", (err) => {
+        console.error("[FFMPEG Studio Render Error]:", err);
+        reject(err);
+      })
+      .on("end", () => {
+        console.log("[FFMPEG] ✅ Studio Reel Rendered:", absOutputPath);
+        resolve(absOutputPath);
+      })
+      .save(absOutputPath);
+  });
+};
+
 module.exports = {
   generateReel,
   processVertical,
@@ -238,4 +301,5 @@ module.exports = {
   getMediaDuration,
   getAudioDuration,
   splitAudio,
+  renderStudioReel
 };

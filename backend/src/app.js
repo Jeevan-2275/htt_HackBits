@@ -3,13 +3,20 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
+const path = require('path');
+
 const app = express();
 
 // Middleware
 app.use(express.json());
 app.use(cors());
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: false,
+}));
 app.use(morgan('dev'));
+
+// Static file serving for uploads (videos, audio, reels)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Basic Route for testing
 app.get('/', (req, res) => {
