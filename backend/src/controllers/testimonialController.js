@@ -13,31 +13,21 @@ exports.getTestimonials = async (req, res) => {
     try {
         const { projectId } = req.params;
 
-        // Verify Project exists and user owns it
+        // Verify Project exists
         const project = await Project.findById(projectId);
         if (!project) {
             return res.status(404).json({ success: false, error: 'Project not found' });
         }
 
-        // Ensure user owns the project
-        if (project.userId.toString() !== req.user.id) {
+        // Allow access if user owns the project, or unassigned, or demo/public project
+        const isOwner = !project.userId || !req.user || project.userId.toString() === req.user.id || project.isDemo || project.isPublic;
+        if (!isOwner) {
             return res.status(401).json({ success: false, error: 'Not authorized' });
         }
 
-        // Get all sessions that either:
-        // 1. Have completed status OR
-        // 2. Have video uploaded (videoUploadComplete = true)
-        const testimonials = await InterviewSession.find({ 
-            projectId,
-            $or: [
-                { status: 'completed' },
-                { videoUploadComplete: true }
-            ]
-        })
-        .populate('videoAssetId')
-        .populate('reelAssetId')
-        .populate('questionSetId')
-        .sort({ createdAt: -1 });
+        // Get all testimonials for this campaign from Testimonial collection
+        const testimonials = await Testimonial.find({ campaignId: projectId })
+            .sort({ createdAt: -1 });
 
         console.log(`Found ${testimonials.length} testimonials for project ${projectId}`);
 
@@ -52,12 +42,23 @@ exports.getTestimonials = async (req, res) => {
 // @route   GET /api/testimonials
 exports.getAllTestimonials = async (req, res) => {
     try {
-        // Find all projects owned by user
-        const projects = await Project.find({ userId: req.user.id });
+        // Find all projects accessible by user
+        let projects = await Project.find({
+            $or: [
+                { userId: req.user.id },
+                { userId: null },
+                { userId: { $exists: false } },
+                { isDemo: true },
+                { isPublic: true }
+            ]
+        });
+        if (projects.length === 0) {
+            projects = await Project.find({});
+        }
         const projectIds = projects.map(p => p._id);
 
-        const testimonials = await InterviewSession.find({ projectId: { $in: projectIds } })
-            .populate('projectId', 'name')
+        const testimonials = await Testimonial.find({ campaignId: { $in: projectIds } })
+            .populate('campaignId', 'name')
             .sort({ createdAt: -1 });
 
         res.status(200).json({ success: true, count: testimonials.length, data: testimonials });
@@ -78,8 +79,8 @@ exports.getTestimonial = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Testimonial not found' });
         }
 
-        // Check ownership via Project
-        if (testimonial.projectId.userId.toString() !== req.user.id) {
+        // Check ownership via Project if userId is assigned
+        if (testimonial.projectId?.userId && req.user && testimonial.projectId.userId.toString() !== req.user.id) {
             return res.status(401).json({ success: false, error: 'Not authorized' });
         }
 
@@ -101,8 +102,8 @@ exports.updateTestimonial = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Testimonial not found' });
         }
 
-        // Check ownership
-        if (testimonial.projectId.userId.toString() !== req.user.id) {
+        // Check ownership if userId is assigned
+        if (testimonial.projectId?.userId && req.user && testimonial.projectId.userId.toString() !== req.user.id) {
             return res.status(401).json({ success: false, error: 'Not authorized' });
         }
 
@@ -130,8 +131,8 @@ exports.processAllVideos = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Project not found' });
         }
 
-        // Ensure user owns the project
-        if (project.userId.toString() !== req.user.id) {
+        // Ensure user owns the project if userId is assigned
+        if (project.userId && req.user && project.userId.toString() !== req.user.id) {
             return res.status(401).json({ success: false, error: 'Not authorized' });
         }
 
@@ -399,14 +400,15 @@ exports.getByCampaign = async (req, res) => {
     try {
         const { campaignId } = req.params;
 
-        // Verify campaign exists and user owns it
+        // Verify campaign exists
         const campaign = await Project.findById(campaignId);
         if (!campaign) {
             return res.status(404).json({ success: false, error: 'Campaign not found' });
         }
 
-        // Check ownership
-        if (campaign.userId.toString() !== req.user.id) {
+        // Check ownership: allow if user owns, or unassigned, or demo/public
+        const isOwner = !campaign.userId || !req.user || campaign.userId.toString() === req.user.id || campaign.isDemo || campaign.isPublic;
+        if (!isOwner) {
             return res.status(401).json({ success: false, error: 'Not authorized' });
         }
 

@@ -895,7 +895,33 @@ const cancelRecording = () => {
   }
   setIsRecording(false);
   setRecordingTime(0);
-  setStep("question");
+  setStep("welcome");
+};
+
+// Finish & Submit Video Anytime
+const handleFinishAndSubmit = async () => {
+  try {
+    setUploadingVideo(true);
+    console.log("[USER] ✅ USER CLICKED FINISH & SUBMIT VIDEO");
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+    await stopSessionRecordingAndUpload();
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setStep("completed");
+  } catch (err) {
+    console.error("Submit error:", err);
+    setError("Error submitting video: " + err.message);
+  } finally {
+    setUploadingVideo(false);
+  }
 };
 
 // Loading state
@@ -1204,9 +1230,18 @@ return (
             )}
 
             <div className="w-full text-center">
-              <p className="text-white/60 text-xs">
+              <p className="text-white/60 text-xs mb-3">
                 ⏱️ Recording will initiate automatically as soon as the prompt finishes.
               </p>
+              {currentQuestionIndex > 0 && (
+                <button
+                  onClick={handleFinishAndSubmit}
+                  disabled={uploadingVideo}
+                  className="glass-btn text-cyan-300 font-semibold text-xs px-5 py-2 rounded-xl transition cursor-pointer"
+                >
+                  {uploadingVideo ? "Submitting Video..." : "Ready with your answers? Submit Video Now ✅"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1414,67 +1449,89 @@ return (
         )}
 
         {/* Bottom Controls */}
-        <div className="glass-dock px-6 py-4 flex items-center justify-center gap-4">
+        <div className="glass-dock px-6 py-4 flex items-center justify-between gap-4">
           {/* Status Display */}
-          <div className="flex-1 text-center">
+          <div className="flex items-center gap-3">
             {!isRecording ? (
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-pulse"></div>
                 <p className="text-white/70 text-xs md:text-sm">
-                  Waiting for next question...
+                  Waiting for response...
                 </p>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center gap-2">
                 <div className="relative w-2.5 h-2.5">
                   <div className="absolute inset-0 bg-red-500 rounded-full animate-pulse"></div>
                   <div className="absolute inset-1 border-2 border-red-500 rounded-full animate-ping"></div>
                 </div>
                 <p className="text-red-400 text-xs md:text-sm font-semibold">
-                  Recording Reel... (Auto-stops after silence or finish)
+                  Recording Reel... (Speak or click Finish)
                 </p>
               </div>
             )}
           </div>
 
-          {/* Mute Button */}
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className={`p-3.5 rounded-full transition cursor-pointer flex-shrink-0 ${isMuted
-              ? "bg-red-500/20 border border-red-500/50 text-red-400"
-              : "glass-btn text-white/80"
-              }`}
-            title={isMuted ? "Unmute microphone" : "Mute microphone"}
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              {isMuted ? (
-                <path d="M13.5 4.06c0-1.336-1.616-2.256-2.73-1.72l-5.24 2.97A4 4 0 005 9.073V15a4 4 0 004 4h.5m7.07-6.649l2.905 2.905M19 13a7 7 0 11-14 0 7 7 0 0114 0z" />
-              ) : (
-                <path d="M19.114 5.636l1.06-1.06a1.5 1.5 0 00-2.12-2.12l-1.06 1.06a8 8 0 11-11.32 11.32l1.06 1.06a1.5 1.5 0 002.12-2.12l-1.06-1.06a6 6 0 009.12-9.12zM9 13a4 4 0 118 0 4 4 0 01-8 0z" />
-              )}
-            </svg>
-          </button>
-
-          {/* Exit Button */}
-          <button
-            onClick={cancelRecording}
-            className="p-3.5 rounded-full glass-btn text-white/80 transition cursor-pointer flex-shrink-0"
-            title="Exit interview"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {/* Action Buttons: Next & Finish & Submit */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => stopRecording()}
+              className="px-4 py-2.5 rounded-xl glass-btn text-cyan-300 font-semibold text-xs md:text-sm transition cursor-pointer flex items-center gap-1.5"
+              title="Advance to next question"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+              <span>Next Question</span>
+              <span>⏭️</span>
+            </button>
+
+            <button
+              onClick={handleFinishAndSubmit}
+              disabled={uploadingVideo}
+              className="px-5 py-2.5 rounded-xl glass-btn-primary text-white font-bold text-xs md:text-sm transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              title="Finish recording and submit video testimonial"
+            >
+              <span>{uploadingVideo ? "Submitting Video..." : "Finish & Submit"}</span>
+              <span>✅</span>
+            </button>
+
+            {/* Mute Button */}
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className={`p-3 rounded-xl transition cursor-pointer flex-shrink-0 ${isMuted
+                ? "bg-red-500/20 border border-red-500/50 text-red-400"
+                : "glass-btn text-white/80"
+                }`}
+              title={isMuted ? "Unmute microphone" : "Mute microphone"}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                {isMuted ? (
+                  <path d="M13.5 4.06c0-1.336-1.616-2.256-2.73-1.72l-5.24 2.97A4 4 0 005 9.073V15a4 4 0 004 4h.5m7.07-6.649l2.905 2.905M19 13a7 7 0 11-14 0 7 7 0 0114 0z" />
+                ) : (
+                  <path d="M19.114 5.636l1.06-1.06a1.5 1.5 0 00-2.12-2.12l-1.06 1.06a8 8 0 11-11.32 11.32l1.06 1.06a1.5 1.5 0 002.12-2.12l-1.06-1.06a6 6 0 009.12-9.12zM9 13a4 4 0 118 0 4 4 0 01-8 0z" />
+                )}
+              </svg>
+            </button>
+
+            {/* Exit Button */}
+            <button
+              onClick={cancelRecording}
+              className="p-3 rounded-xl glass-btn text-white/80 transition cursor-pointer flex-shrink-0"
+              title="Exit interview"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     )}

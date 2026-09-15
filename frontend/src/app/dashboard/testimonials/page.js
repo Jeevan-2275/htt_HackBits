@@ -86,13 +86,16 @@ export default function TestimonialsPage() {
         headers: authService.getAuthHeaders()
       });
       const data = await response.json();
-      if (data.success && data.data.length > 0) {
+      if (data.success && data.data && data.data.length > 0) {
         setCampaigns(data.data);
         setSelectedCampaign(data.data[0]._id);
+      } else {
+        setLoading(false);
       }
     } catch (error) {
       console.error('Failed to load campaigns:', error);
       setError('Failed to load campaigns');
+      setLoading(false);
     }
   };
 

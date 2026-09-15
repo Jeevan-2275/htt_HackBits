@@ -6,7 +6,20 @@ const CampaignQuestionSet = require('../models/CampaignQuestionSet');
 // @access  Private
 exports.getProjects = async (req, res) => {
     try {
-        const projects = await Project.find({ userId: req.user.id });
+        let projects = await Project.find({
+            $or: [
+                { userId: req.user.id },
+                { userId: null },
+                { userId: { $exists: false } },
+                { isDemo: true },
+                { isPublic: true }
+            ]
+        }).sort({ createdAt: -1 });
+
+        // If user has no projects, include all available campaigns so they have immediate demo access
+        if (projects.length === 0) {
+            projects = await Project.find({}).sort({ createdAt: -1 });
+        }
 
         res.status(200).json({
             success: true,
@@ -30,8 +43,9 @@ exports.getProject = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Project not found' });
         }
 
-        // Make sure user owns project
-        if (project.userId.toString() !== req.user.id) {
+        // Allow access if user owns project, or if it has no userId, or if it's a demo/public project
+        const isOwner = !project.userId || !req.user || project.userId.toString() === req.user.id || project.isDemo || project.isPublic;
+        if (!isOwner) {
             return res.status(401).json({ success: false, error: 'Not authorized to access this project' });
         }
 
